@@ -38,7 +38,7 @@ urlpatterns = [
     path('documents/<uuid:doc_id>/view/', BidDocumentServeView.as_view(), name='bid_document_serve'),
  path('tenders/<uuid:tender_id>/evaluation/config', tender_evaluation_config_view, name='tender-eval-config'),
     path('tenders/<uuid:tender_id>/evaluation/criteria', criteria_list_create, name='criteria-list-create'),
-    path('tenders/<uuid:tender_id>/evaluation/criteria/<uuid:criterion_id>', criterion_detail_view, name='criterion-detail'),
+    path('tenders/<uuid:tender_id>/evaluation/criteria/<int:criterion_id>', criterion_detail_view, name='criterion-detail'),
 
     path('evaluations/<uuid:evaluation_id>/scores', upsert_evaluation_scores, name='upsert-eval-scores'),
     path('evaluations/<uuid:evaluation_id>/recompute', recompute_evaluation_totals, name='recompute-eval-totals'),

@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.db.models import Q, Count, Avg
+from django.db.models.deletion import ProtectedError
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -129,8 +130,11 @@ def criterion_detail_view(request, tender_id, criterion_id):
             ser.save()
             return Response(ser.data)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    obj.delete()
+    if request.method == 'DELETE':
+        try:
+            obj.delete()
+        except ProtectedError:
+            return Response({'error': 'Cannot delete this criterion because it has recorded evaluation scores. Delete the related scores/evaluations first.'}, status=status.HTTP_400_BAD_REQUEST)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 # Upsert per-criterion scores
