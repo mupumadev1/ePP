@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 // navigationItems: [{ id, label, icon }]
 // activeTab: string
 // onSelect: (id) => void
-const SideBar = ({ navigationItems = [], activeTab, onSelect }) => {
+// routeFor: optional function (id) => path
+const SideBar = ({ navigationItems = [], activeTab, onSelect, routeFor: routeForProp }) => {
   const navigate = useNavigate();
 
-  const routeFor = (id) => {
+  const defaultRouteFor = (id) => {
     switch (id) {
       case 'dashboard':
         return '/dashboard';
@@ -25,6 +26,8 @@ const SideBar = ({ navigationItems = [], activeTab, onSelect }) => {
         return '/dashboard';
     }
   };
+
+  const routeFor = typeof routeForProp === 'function' ? routeForProp : defaultRouteFor;
 
   const handleClick = (id) => {
     if (typeof onSelect === 'function') {

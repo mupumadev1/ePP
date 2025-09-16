@@ -8,9 +8,7 @@ from django.db import models
 from users.models import  ProcuringEntity
 from tenders.models import Tender
 
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
+from django.conf import settings
 # Create your models here.
 class Bid(models.Model):
     """Bids submitted by suppliers for tenders"""
@@ -33,7 +31,7 @@ class Bid(models.Model):
     # Basic Information
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tender = models.ForeignKey(Tender, on_delete=models.CASCADE, related_name='bids')
-    supplier = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bids')
+    supplier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bids')
     bid_reference = models.CharField(max_length=100, unique=True)
 
     # Financial Information
@@ -153,8 +151,8 @@ class EvaluationCommittee(models.Model):
 
     tender = models.ForeignKey(Tender, on_delete=models.CASCADE, related_name='evaluation_committees')
     committee_name = models.CharField(max_length=200)
-    chairperson = models.ForeignKey(User, on_delete=models.PROTECT, related_name='chaired_committees')
-    secretary = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+    chairperson = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='chaired_committees')
+    secretary = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                   related_name='secretary_committees')
     appointment_date = models.DateField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
@@ -174,7 +172,7 @@ class CommitteeMember(models.Model):
     ]
 
     committee = models.ForeignKey(EvaluationCommittee, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='committee_memberships')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='committee_memberships')
     role = models.CharField(max_length=15, choices=ROLES)
     expertise_area = models.CharField(max_length=200, blank=True)
     appointed_at = models.DateTimeField(auto_now_add=True)
@@ -195,7 +193,7 @@ class BidEvaluation(models.Model):
     ]
 
     bid = models.ForeignKey(Bid, on_delete=models.CASCADE, related_name='evaluations')
-    evaluator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='bid_evaluations')
+    evaluator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='bid_evaluations')
     committee = models.ForeignKey(EvaluationCommittee, on_delete=models.CASCADE, related_name='evaluations')
 
     # Technical Evaluation
@@ -224,6 +222,108 @@ class BidEvaluation(models.Model):
     def __str__(self):
         return f"{self.bid.bid_reference} - Evaluated by {self.evaluator.username}"
 
+class TenderEvaluationConfig(models.Model):
+    FIN_METHOD_LOWEST_PRICE = 'lowest_price'
+    FIN_METHOD_CRITERIA = 'criteria'
+    FINANCIAL_METHOD_CHOICES = [
+        (FIN_METHOD_LOWEST_PRICE, 'Lowest Price'),
+        (FIN_METHOD_CRITERIA, 'Criteria Based'),
+    ]
+
+    tender = models.OneToOneField(Tender, on_delete=models.CASCADE, related_name='evaluation_config')
+
+    # Weights (%); normalized when computing overall
+    technical_weight = models.DecimalField(max_digits=5, decimal_places=2, default=70,
+                                           validators=[MinValueValidator(0), MaxValueValidator(100)])
+    financial_weight = models.DecimalField(max_digits=5, decimal_places=2, default=30,
+                                           validators=[MinValueValidator(0), MaxValueValidator(100)])
+
+    # Compliance gate
+    compliance_required = models.BooleanField(default=True)
+    enforce_mandatory = models.BooleanField(default=True)
+
+    # Technical pass mark (percentage 0-100)
+    technical_pass_mark = models.DecimalField(max_digits=5, decimal_places=2, default=70,
+                                              validators=[MinValueValidator(0), MaxValueValidator(100)])
+
+    # Financial scoring approach
+    financial_method = models.CharField(max_length=20, choices=FINANCIAL_METHOD_CHOICES,
+                                        default=FIN_METHOD_LOWEST_PRICE)
+    cap_financial_score_at = models.DecimalField(max_digits=5, decimal_places=2, default=100)
+
+    def __str__(self):
+        return f"EvalConfig {self.tender.reference_number}"
+
+# Add: criteria with compliance/upload support
+class EvaluationCriterion(models.Model):
+    SECTION_COMPLIANCE = 'compliance'
+    SECTION_TECHNICAL = 'technical'
+    SECTION_FINANCIAL = 'financial'
+    SECTION_CHOICES = [
+        (SECTION_COMPLIANCE, 'Compliance'),
+        (SECTION_TECHNICAL, 'Technical'),
+        (SECTION_FINANCIAL, 'Financial'),
+    ]
+
+    TYPE_SCORE = 'score'      # numeric scoring against max_points
+    TYPE_BOOLEAN = 'boolean'  # pass/fail
+    TYPE_UPLOAD = 'upload'    # requires a document
+    TYPE_CHOICES = [
+        (TYPE_SCORE, 'Score'),
+        (TYPE_BOOLEAN, 'Boolean'),
+        (TYPE_UPLOAD, 'Upload'),
+    ]
+
+    tender = models.ForeignKey(Tender, on_delete=models.CASCADE, related_name='criteria')
+    section = models.CharField(max_length=10, choices=SECTION_CHOICES)
+    criterion_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default=TYPE_SCORE)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+
+    # Scoring config (for TYPE_SCORE; also used as 0/max for boolean/upload normalization)
+    weight = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+                                 validators=[MinValueValidator(0), MaxValueValidator(100)])
+    max_points = models.DecimalField(max_digits=6, decimal_places=2, default=100,
+                                     validators=[MinValueValidator(0)])
+
+    # Mandatory gates
+    mandatory = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+
+    # For upload criteria: link to a required document type
+    expected_upload = models.ForeignKey(
+        'tenders.TenderUploadDocuments',
+        null=True, blank=True, on_delete=models.PROTECT,
+        related_name='criteria_links'
+    )
+
+    class Meta:
+        ordering = ['section', 'order', 'name']
+        unique_together = [('tender', 'section', 'name')]
+
+    def __str__(self):
+        return f"{self.tender.reference_number} - {self.section} - {self.name}"
+
+# Add: per-criterion scores on an evaluator's BidEvaluation
+class BidCriterionScore(models.Model):
+    evaluation = models.ForeignKey(BidEvaluation, on_delete=models.CASCADE, related_name='criterion_scores')
+    criterion = models.ForeignKey(EvaluationCriterion, on_delete=models.PROTECT, related_name='scores')
+    score = models.DecimalField(max_digits=6, decimal_places=2, validators=[MinValueValidator(0)])
+    comments = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = [('evaluation', 'criterion')]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.evaluation.bid.tender_id != self.criterion.tender_id:
+            raise ValidationError("Criterion and evaluation must belong to the same tender.")
+        if self.score > self.criterion.max_points:
+            raise ValidationError(f"Score cannot exceed criterion max_points ({self.criterion.max_points}).")
+
+    def __str__(self):
+        return f"{self.evaluation.id} - {self.criterion.name}: {self.score}"
+
 
 class Contract(models.Model):
     """Contracts awarded after tender evaluation"""
@@ -241,7 +341,7 @@ class Contract(models.Model):
     contract_number = models.CharField(max_length=100, unique=True)
     tender = models.OneToOneField(Tender, on_delete=models.PROTECT, related_name='contract')
     winning_bid = models.OneToOneField(Bid, on_delete=models.PROTECT, related_name='contract')
-    supplier = models.ForeignKey(User, on_delete=models.PROTECT, related_name='contracts')
+    supplier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='contracts')
     procuring_entity = models.ForeignKey(ProcuringEntity, on_delete=models.PROTECT, related_name='contracts')
 
     contract_title = models.CharField(max_length=500)
@@ -264,8 +364,8 @@ class Contract(models.Model):
     contract_signed_date = models.DateField(null=True, blank=True)
 
     # Tracking
-    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_contracts')
-    approved_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='created_contracts')
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                     related_name='approved_contracts')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

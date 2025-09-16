@@ -60,11 +60,26 @@ class Tender(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('published', 'Published'),
+        ('evaluation', 'Evaluation'),
         ('closed', 'Closed'),
         ('cancelled', 'Cancelled'),
         ('awarded', 'Awarded'),
         ('completed', 'Completed'),
     ]
+
+    # Allowed status transitions map
+    TRANSITION_MAP = {
+        'draft': ['published', 'cancelled'],
+        'published': ['evaluation', 'closed', 'cancelled'],
+        'evaluation': ['awarded', 'closed', 'cancelled'],
+        'awarded': ['completed'],
+        'closed': [],
+        'cancelled': [],
+        'completed': [],
+    }
+
+    def allowed_transitions(self):
+        return self.TRANSITION_MAP.get(self.status, [])
 
     TENDER_STAGES = [
         ('preparation', 'Preparation'),
@@ -96,16 +111,29 @@ class Tender(models.Model):
     currency = models.CharField(max_length=3, default='ZMW')
 
     # Important Dates
-    publication_date = models.DateTimeField(default=now())
+    publication_date = models.DateTimeField(default=now)
     closing_date = models.DateTimeField()
     opening_date = models.DateTimeField(null=True, blank=True)
     bid_validity_period = models.PositiveIntegerField(default=90, help_text="Days")
 
     # Requirements and Specifications
-    minimum_requirements = models.TextField(blank=True)
-    technical_specifications = models.TextField(blank=True)
-    evaluation_criteria = models.TextField(blank=True)
-    terms_conditions = models.TextField(blank=True)
+    minimum_requirements = models.TextField(
+        blank=True,
+        help_text="Human-readable summary of minimum requirements (for bidder information)."
+    )
+    technical_specifications = models.TextField(
+        blank=True,
+        help_text="Human-readable technical specifications (for bidder information)."
+    )
+    # Note: keep this as narrative-only; structured criteria live in bids.EvaluationCriterion
+    evaluation_criteria = models.TextField(
+        blank=True,
+        help_text="Narrative overview of evaluation approach (informational). For scoring, use structured criteria."
+    )
+    terms_conditions = models.TextField(
+        blank=True,
+        help_text="Any additional terms and conditions (informational)."
+    )
 
     # Status and Workflow
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='draft')
@@ -145,6 +173,51 @@ class Tender(models.Model):
             delta = self.closing_date - now()
             return delta.days
         return 0
+
+    def required_uploads(self):
+        # Uses related_name='upload_documents' on TenderUploadDocuments
+        return self.upload_documents.all()
+
+    # Convenience: list criteria by section (compliance|technical|financial)
+    def criteria_by_section(self, section: str):
+        return self.criteria.filter(section=section)
+
+    # Whether per-tender evaluation config exists
+    @property
+    def has_evaluation_config(self) -> bool:
+        try:
+            _ = self.evaluation_config
+            return True
+        except Exception:
+            return False
+
+    @property
+    def has_compliance_criteria(self) -> bool:
+        return self.criteria.filter(section='compliance').exists()
+
+    @property
+    def has_technical_criteria(self) -> bool:
+        return self.criteria.filter(section='technical').exists()
+
+    @property
+    def has_financial_criteria(self) -> bool:
+        return self.criteria.filter(section='financial').exists()
+
+    @property
+    def evaluation_ready(self) -> bool:
+        if not self.has_evaluation_config:
+            return False
+        cfg = self.evaluation_config
+        if not self.has_technical_criteria:
+            return False
+        if getattr(cfg, 'financial_method', None) == 'criteria' and not self.has_financial_criteria:
+            return False
+        if getattr(cfg, 'compliance_required', False):
+            has_comp = self.has_compliance_criteria
+            has_mandatory_uploads = self.upload_documents.filter(mandatory=True).exists()
+            if not (has_comp or has_mandatory_uploads):
+                return False
+        return True
 
 
 def tender_document_path(instance, filename):

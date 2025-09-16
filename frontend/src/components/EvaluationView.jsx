@@ -1,8 +1,32 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Users, Building, FileText } from 'lucide-react';
-
+import { getEvaluationOverview } from '../api/tender.js';
 
 const EvaluationView = ({ tenders, onSelectTender }) => {
+  const [summary, setSummary] = useState({ pending_evaluations: 0, completed_this_month: 0, avg_days_to_complete: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getEvaluationOverview();
+        setSummary({
+          pending_evaluations: Number(data?.pending_evaluations) || 0,
+          completed_this_month: Number(data?.completed_this_month) || 0,
+          avg_days_to_complete: Number(data?.avg_days_to_complete) || 0,
+        });
+      } catch (e) {
+        setError(e?.response?.data?.error || e.message || 'Failed to load evaluation summary');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -61,17 +85,20 @@ const EvaluationView = ({ tenders, onSelectTender }) => {
             <h3 className="text-lg font-medium text-gray-900">Evaluation Summary</h3>
           </div>
           <div className="p-6">
+            {error && (
+              <div className="text-sm text-red-600 mb-3">{error}</div>
+            )}
             <div className="space-y-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">8</div>
+                <div className="text-2xl font-bold text-blue-600">{loading ? '…' : summary.pending_evaluations}</div>
                 <div className="text-sm text-gray-500">Pending Evaluations</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">24</div>
+                <div className="text-2xl font-bold text-green-600">{loading ? '…' : summary.completed_this_month}</div>
                 <div className="text-sm text-gray-500">Completed This Month</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600">3.2</div>
+                <div className="text-2xl font-bold text-yellow-600">{loading ? '…' : summary.avg_days_to_complete}</div>
                 <div className="text-sm text-gray-500">Avg. Days to Complete</div>
               </div>
             </div>

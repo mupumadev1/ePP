@@ -3,13 +3,14 @@ import { useParams, Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance.jsx';
 import Evaluation from './Evaluation.jsx';
 import CreateTenderForm from './CreateTenderForm.jsx';
+import TenderCriteriaSetup from './TenderCriteriaSetup.jsx';
 
 const TenderDetail = () => {
   const { tenderId } = useParams();
   const [tender, setTender] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [mode, setMode] = useState('view'); // 'view' | 'evaluate' | 'edit'
+  const [mode, setMode] = useState('view'); // 'view' | 'evaluate' | 'criteria' | 'edit'
 
   useEffect(() => {
     const loadTender = async () => {
@@ -18,6 +19,11 @@ const TenderDetail = () => {
         setError(null);
         const res = await axiosInstance.get(`/tenders/${tenderId}/`);
         setTender(res.data);
+        // Initialize mode from query param
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('edit') === '1') {
+          setMode('edit');
+        }
       } catch (e) {
         setError(e?.response?.data?.error || e.message || 'Failed to load tender');
         setTender(null);
@@ -68,6 +74,31 @@ const TenderDetail = () => {
               <div className="mt-2 text-sm text-gray-500">
                 Status: <span className="font-medium text-gray-800">{tender.status}</span>
               </div>
+              <div className="mt-3 flex items-center gap-2">
+                <label className="text-sm text-gray-600">Change Status:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm"
+                  value={tender.status}
+                  onChange={async (e) => {
+                    const newStatus = e.target.value;
+                    if (!newStatus || newStatus === tender.status) return;
+                    try {
+                      await axiosInstance.patch(`/tenders/${tenderId}/update/`, { status: newStatus });
+                      // Re-fetch detail to update allowed_transitions and other fields
+                      const detail = await axiosInstance.get(`/tenders/${tenderId}/`);
+                      setTender(detail.data);
+                    } catch (err) {
+                      alert(err?.response?.data?.error || err?.response?.data?.status?.[0] || 'Failed to update status');
+                    }
+                  }}
+                  disabled={!tender.allowed_transitions || tender.allowed_transitions.length === 0}
+                >
+                  <option value={tender.status}>{tender.status}</option>
+                  {(tender.allowed_transitions || []).map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
@@ -78,6 +109,10 @@ const TenderDetail = () => {
                 onClick={() => setMode('evaluate')}
                 className={`px-3 py-2 rounded ${mode === 'evaluate' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
               >Evaluate</button>
+              <button
+                onClick={() => setMode('criteria')}
+                className={`px-3 py-2 rounded ${mode === 'criteria' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}
+              >Criteria</button>
               <button
                 onClick={() => setMode('edit')}
                 className={`px-3 py-2 rounded ${mode === 'edit' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
@@ -108,6 +143,12 @@ const TenderDetail = () => {
         {mode === 'evaluate' && (
           <div className="bg-white rounded-lg shadow">
             <Evaluation tender={tender} embedded onClose={() => setMode('view')} />
+          </div>
+        )}
+
+        {mode === 'criteria' && (
+          <div className="bg-white rounded-lg shadow">
+            <TenderCriteriaSetup />
           </div>
         )}
 

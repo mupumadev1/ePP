@@ -70,7 +70,7 @@ class SystemMessage(models.Model):
     target_audience = models.CharField(max_length=20, choices=TARGET_AUDIENCES, default='all')
 
     is_active = models.BooleanField(default=True)
-    start_date = models.DateTimeField(default=now())
+    start_date = models.DateTimeField(default=now)
     end_date = models.DateTimeField(null=True, blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_messages')

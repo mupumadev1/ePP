@@ -1,9 +1,9 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-    baseURL: "http://192.168.100.201:8000/",
+    baseURL: "http://192.168.100.144:8000/",
     withCredentials: true,
-    timeout: 10000, // Add timeout for better UX
+   // timeout: 10000, // Add timeout for better UX
 });
 
 // Optimized cookie parser with caching

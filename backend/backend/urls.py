@@ -21,6 +21,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('users/', include('users.urls')),
     path('tenders/', include('tenders.urls')),
-    # Include bids URLs to expose tender-related bid endpoints like /tenders/<uuid>/bids/
-    path('', include('bids.urls')),
+    # Mount bids endpoints under /bids/
+    path('bids/', include('bids.urls')),
 ]

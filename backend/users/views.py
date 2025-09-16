@@ -85,6 +85,8 @@ def me_view(request):
                 "username": user.username,
                 "email": user.email,
                 "id": user.id,
+                "user_type": user.user_type,
+                "is_superuser": getattr(user, "is_superuser", False),
             }
         })
     return JsonResponse({"authenticated": False}, status=401)

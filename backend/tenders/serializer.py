@@ -164,6 +164,63 @@ class TenderCreateSerializer(serializers.Serializer):
         return tender
 
 
+class TenderUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tender
+        fields = [
+            'title', 'description', 'category', 'subcategory', 'procurement_method', 'estimated_value', 'currency',
+            'closing_date', 'opening_date', 'bid_validity_period', 'minimum_requirements', 'technical_specifications',
+            'evaluation_criteria', 'terms_conditions', 'tender_security_required', 'tender_security_amount',
+            'tender_security_type', 'allow_variant_bids', 'allow_electronic_submission', 'auto_extend_on_amendment',
+            'status', 'tender_stage'
+        ]
+        extra_kwargs = {
+            'category': {'required': False, 'allow_null': True},
+            'subcategory': {'required': False, 'allow_null': True},
+            'closing_date': {'required': False, 'allow_null': True},
+            'opening_date': {'required': False, 'allow_null': True},
+        }
+
+    def validate_status(self, value):
+        # Enforce status transition map
+        if not hasattr(self.instance, 'status'):
+            return value
+        current = self.instance.status
+        # Always allow keeping same value
+        if value == current:
+            return value
+        allowed_values = set(c[0] for c in Tender.STATUS_CHOICES)
+        if value not in allowed_values:
+            raise serializers.ValidationError('Invalid status value')
+        allowed_next = Tender.TRANSITION_MAP.get(current, [])
+        if value not in allowed_next:
+            raise serializers.ValidationError(f'Invalid transition from {current} to {value}')
+        return value
+
+
+class TenderDetailSerializer(serializers.ModelSerializer):
+    allowed_transitions = serializers.SerializerMethodField(read_only=True)
+    procuring_entity = serializers.CharField(source='procuring_entity.name', read_only=True)
+    procuring_entity_id = serializers.PrimaryKeyRelatedField(source='procuring_entity', read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(source='category', read_only=True)
+    subcategory_id = serializers.PrimaryKeyRelatedField(source='subcategory', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Tender
+        fields = [
+            'id', 'reference_number', 'title', 'description',
+            'category_id', 'subcategory_id', 'procuring_entity', 'procuring_entity_id',
+            'procurement_method', 'estimated_value', 'currency',
+            'closing_date', 'opening_date', 'bid_validity_period',
+            'minimum_requirements', 'technical_specifications', 'evaluation_criteria', 'terms_conditions',
+            'tender_security_required', 'tender_security_amount', 'tender_security_type',
+            'allow_variant_bids', 'allow_electronic_submission', 'auto_extend_on_amendment',
+            'status', 'tender_stage', 'allowed_transitions'
+        ]
+
+    def get_allowed_transitions(self, obj):
+        return obj.allowed_transitions()
+
 class TenderListSerializer(serializers.ModelSerializer):
     procuring_entity = serializers.CharField(source='procuring_entity.name', read_only=True)
     total_bids = serializers.SerializerMethodField(read_only=True)
@@ -173,5 +230,7 @@ class TenderListSerializer(serializers.ModelSerializer):
         fields = ['id', 'reference_number', 'title', 'status', 'closing_date', 'estimated_value', 'procuring_entity', 'total_bids']
 
     def get_total_bids(self, obj):
-        # Placeholder since bids relation/model may exist separately; return 0 by default
-        return 0
+        try:
+            return obj.bids.count()
+        except Exception:
+            return 0

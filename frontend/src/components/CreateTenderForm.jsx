@@ -3,7 +3,7 @@ import { X, Upload, Calendar, DollarSign, FileText, AlertCircle, CheckCircle,Plu
 import { fetchCategories as apiGetCategories, fetchProcuringEntities as apiGetEntities } from "../api/settings.jsx";
 import axiosInstance from "../api/axiosInstance.jsx";
 
-  const CreateTenderForm = ({ onCancel, onSuccess }) => {
+  const CreateTenderForm = ({ tender = null, onCancel, onSuccess }) => {
   const [formData, setFormData] = useState({
     // Basic Information
     title: '',
@@ -128,6 +128,45 @@ const uploadDocumentTypes = [
     fetchProcuringEntities();
   }, []);
 
+  // Prefill form in edit mode
+  useEffect(() => {
+    if (!tender) return;
+    const toInput = (iso) => {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch {
+        return '';
+      }
+    };
+    setFormData((prev) => ({
+      ...prev,
+      title: tender.title || '',
+      description: tender.description || '',
+      category: tender.category_id || '',
+      subcategory: tender.subcategory_id || '',
+      procuring_entity: tender.procuring_entity_id || '',
+      procurement_method: tender.procurement_method || '',
+      estimated_value: tender.estimated_value ?? '',
+      currency: tender.currency || 'ZMW',
+      closing_date: toInput(tender.closing_date),
+      opening_date: toInput(tender.opening_date),
+      bid_validity_period: tender.bid_validity_period ?? 90,
+      minimum_requirements: tender.minimum_requirements || '',
+      technical_specifications: tender.technical_specifications || '',
+      evaluation_criteria: tender.evaluation_criteria || '',
+      terms_conditions: tender.terms_conditions || '',
+      tender_security_required: !!tender.tender_security_required,
+      tender_security_amount: tender.tender_security_amount ?? '',
+      tender_security_type: tender.tender_security_type || '',
+      allow_variant_bids: !!tender.allow_variant_bids,
+      allow_electronic_submission: !!tender.allow_electronic_submission,
+      auto_extend_on_amendment: !!tender.auto_extend_on_amendment,
+    }));
+  }, [tender]);
+
   // Update subcategories when category changes
   useEffect(() => {
     if (formData.category && categories.length > 0) {
@@ -220,12 +259,39 @@ const uploadDocumentTypes = [
   }
 
   setLoading(true);
-    function getCSRFToken() {
-      const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
-      return match ? decodeURIComponent(match[1]) : '';
-    }
 
   try {
+    // Edit mode: send JSON PATCH to update endpoint
+    if (tender && tender.id) {
+      const payload = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        category: formData.category ? parseInt(formData.category) : null,
+        subcategory: formData.subcategory ? parseInt(formData.subcategory) : null,
+        procurement_method: formData.procurement_method,
+        estimated_value: formData.estimated_value ? parseFloat(formData.estimated_value) : null,
+        currency: formData.currency,
+        closing_date: formData.closing_date ? new Date(formData.closing_date).toISOString() : null,
+        opening_date: formData.opening_date ? new Date(formData.opening_date).toISOString() : null,
+        bid_validity_period: formData.bid_validity_period ? parseInt(formData.bid_validity_period) : null,
+        minimum_requirements: formData.minimum_requirements.trim() || '',
+        technical_specifications: formData.technical_specifications.trim() || '',
+        evaluation_criteria: formData.evaluation_criteria.trim() || '',
+        terms_conditions: formData.terms_conditions.trim() || '',
+        tender_security_required: formData.tender_security_required,
+        tender_security_amount: formData.tender_security_required && formData.tender_security_amount ? parseFloat(formData.tender_security_amount) : null,
+        tender_security_type: formData.tender_security_required ? formData.tender_security_type : null,
+        allow_variant_bids: formData.allow_variant_bids,
+        allow_electronic_submission: formData.allow_electronic_submission,
+        auto_extend_on_amendment: formData.auto_extend_on_amendment,
+      };
+      const res = await axiosInstance.patch(`/tenders/${tender.id}/update/`, payload);
+      setErrors({});
+      onSuccess && onSuccess(res?.data);
+      return;
+    }
+
+    // Create mode: multipart payload
     // Create FormData for file upload
     const submitData = new FormData();
 
@@ -426,7 +492,7 @@ const validateForm = () => {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Tender</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{tender ? 'Edit Tender' : 'Create New Tender'}</h2>
           <button
             onClick={onCancel}
             className="text-gray-400 hover:text-gray-600"
@@ -1024,12 +1090,12 @@ const validateForm = () => {
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Creating...
+                  {tender ? 'Saving...' : 'Creating...'}
                 </>
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Create Tender
+                  {tender ? 'Save Changes' : 'Create Tender'}
                 </>
               )}
             </button>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Users, FileText, Calculator } from 'lucide-react';
+import { Download, Users, FileText, Calculator, Plus, Save } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance.jsx';
+import { getEvaluationCommittee, saveEvaluationCommittee } from '../api/tender.js';
 
 function TabButton({ active, onClick, children, count }) {
   return (
@@ -255,21 +256,31 @@ function FinancialTab({ bids, evaluation, updateBidEval, currency }) {
   );
 }
 
-function CommitteeTab({ members = [] }) {
+function CommitteeTab({ members = [], onAdd, onSave, onRemove, setChairpersonId, chairpersonId }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium text-gray-900">Evaluation Committee</h3>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          Add Member
-        </button>
+        <div className="flex gap-2">
+          <button onClick={onAdd} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Add Member
+          </button>
+          <button onClick={onSave} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2">
+            <Save className="h-4 w-4" />
+            Save Committee
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4">
         {members.length === 0 && (
           <div className="text-sm text-gray-500">No committee members yet.</div>
         )}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Chairperson User ID</label>
+          <input className="border rounded p-2 w-64" value={chairpersonId || ''} onChange={(e)=>setChairpersonId(e.target.value)} placeholder="User ID" />
+        </div>
         {members.map((member, index) => (
           <div key={index} className="bg-white border border-gray-200 rounded-lg p-4">
             <div className="flex justify-between items-start">
@@ -278,9 +289,7 @@ function CommitteeTab({ members = [] }) {
                 <p className="text-sm text-gray-500 mt-1">{member.role}</p>
                 <p className="text-sm text-gray-600 mt-1">Expertise: {member.expertise}</p>
               </div>
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Active
-              </span>
+              <button onClick={()=>onRemove(index)} className="text-red-600 text-sm">Remove</button>
             </div>
           </div>
         ))}
@@ -290,47 +299,7 @@ function CommitteeTab({ members = [] }) {
 }
 
 function SummaryTab({ bids, criteria, evaluation, onSubmit, submitting }) {
-  const compliantBids = bids.filter(b => evaluation[b.id]?.compliance?.pass === true);
-
-  const rows = compliantBids.map((b) => {
-    // Calculate weighted technical score
-    const techData = evaluation[b.id]?.technical || {};
-    let weightedTechScore = 0;
-    let maxPossibleTech = 0;
-
-    criteria.technical?.forEach(crit => {
-      const score = techData[crit.id]?.score || 0;
-      const weight = crit.weight || 0;
-      const max = crit.max || 100;
-      weightedTechScore += (score / max) * weight;
-      maxPossibleTech += weight;
-    });
-
-    const techScore = maxPossibleTech > 0 ? Math.round(weightedTechScore) : 0;
-    const price = evaluation[b.id]?.financial?.price ?? b.submitted_amount;
-
-    // Calculate financial score
-    const prices = compliantBids.map(bid => evaluation[bid.id]?.financial?.price ?? bid.submitted_amount).filter(Boolean);
-    const lowestPrice = prices.length ? Math.min(...prices) : 0;
-    const financialScore = price && lowestPrice ? Math.round((lowestPrice / price) * 100) : 0;
-
-    // Combined score (60% technical, 40% financial - adjust as needed)
-    const combinedScore = Math.round((techScore * 0.6) + (financialScore * 0.4));
-
-    return {
-      bidder: b.bidder_name,
-      techScore,
-      financialScore,
-      combinedScore,
-      price,
-      id: b.id
-    };
-  });
-
-
-  // Rank by combined score
-  rows.sort((a, b) => b.combinedScore - a.combinedScore);
-  rows.forEach((row, index) => row.rank = index + 1);
+  const rows = computeEvaluationRows(bids, criteria, evaluation);
 
   return (
     <div className="space-y-6">
@@ -410,6 +379,157 @@ function SummaryTab({ bids, criteria, evaluation, onSubmit, submitting }) {
   );
 }
 
+// Shared helper: compute evaluation rows (tech/financial/combined) and sort by combined
+function computeEvaluationRows(bids, criteria, evaluation) {
+  const compliantBids = bids.filter(b => evaluation[b.id]?.compliance?.pass === true);
+  const rows = compliantBids.map((b) => {
+    const techData = evaluation[b.id]?.technical || {};
+    let weightedTechScore = 0;
+    let maxPossibleTech = 0;
+    (criteria?.technical || []).forEach(crit => {
+      const score = techData[crit.id]?.score || 0;
+      const weight = crit.weight || 0;
+      const max = crit.max || 100;
+      weightedTechScore += (score / max) * weight;
+      maxPossibleTech += weight;
+    });
+    const techScore = maxPossibleTech > 0 ? Math.round(weightedTechScore) : 0;
+    const price = evaluation[b.id]?.financial?.price ?? b.submitted_amount;
+    const prices = compliantBids.map(bid => evaluation[bid.id]?.financial?.price ?? bid.submitted_amount).filter(Boolean);
+    const lowestPrice = prices.length ? Math.min(...prices) : 0;
+    const financialScore = price && lowestPrice ? Math.round((lowestPrice / price) * 100) : 0;
+    const combinedScore = Math.round((techScore * 0.6) + (financialScore * 0.4));
+    return { bidder: b.bidder_name, techScore, financialScore, combinedScore, price, id: b.id };
+  });
+  rows.sort((a, b) => b.combinedScore - a.combinedScore);
+  rows.forEach((r, i) => r.rank = i + 1);
+  return rows;
+}
+
+function UploadedDocumentsTab({ bids }) {
+  const [docsMap, setDocsMap] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const baseURL = (axiosInstance && axiosInstance.defaults && axiosInstance.defaults.baseURL) || '';
+  const toAbsolute = (path) => {
+    if (!path) return '#';
+    if (path.startsWith('http')) return path;
+    // Ensure baseURL ends without trailing slash
+    const b = baseURL ? baseURL.replace(/\/$/, '') : '';
+    return `${b}${path}`;
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const entries = await Promise.all(
+          (bids || []).map(async (b) => {
+            try {
+              const res = await axiosInstance.get(`/bids/bid/${b.id}/documents/list/`);
+              return [b.id, res.data || []];
+            } catch (e) {
+              return [b.id, { error: e?.response?.data?.error || e.message }];
+            }
+          })
+        );
+        if (!ignore) {
+          const map = {};
+          entries.forEach(([bidId, docs]) => { map[bidId] = docs; });
+          setDocsMap(map);
+        }
+      } catch (e) {
+        if (!ignore) setError(e.message || 'Failed to load documents');
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+    if (bids && bids.length) load(); else setDocsMap({});
+    return () => { ignore = true; };
+  }, [JSON.stringify((bids||[]).map(b=>b.id))]);
+
+  if (loading) return <div className="text-sm text-gray-500">Loading documents…</div>;
+  if (error) return <div className="text-sm text-red-600">{error}</div>;
+
+  return (
+    <div className="space-y-4">
+      {(!bids || bids.length === 0) && (
+        <div className="text-sm text-gray-500">No bids to display.</div>
+      )}
+      {(bids||[]).map((b) => {
+        const docs = docsMap[b.id];
+        const hasErr = docs && !Array.isArray(docs) && docs.error;
+        return (
+          <div key={b.id} className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="font-medium text-gray-900">{b.bidder_name}</div>
+                <div className="text-sm text-gray-500">Bid Amount: ZMW {b.submitted_amount?.toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="mt-3">
+              {hasErr && (
+                <div className="text-sm text-red-600">{docs.error}</div>
+              )}
+              {Array.isArray(docs) && docs.length === 0 && (
+                <div className="text-sm text-gray-500">No documents uploaded.</div>
+              )}
+              {Array.isArray(docs) && docs.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-left">Size</th>
+                        <th className="px-3 py-2 text-left">Uploaded</th>
+                        <th className="px-3 py-2 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {docs.map((d) => (
+                        <tr key={d.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-medium text-gray-900">{d.document_name}</td>
+                          <td className="px-3 py-2">{d.document_type}</td>
+                          <td className="px-3 py-2">{d.file_size ? `${Math.round(d.file_size/1024)} KB` : '-'}</td>
+                          <td className="px-3 py-2">{d.uploaded_at ? new Date(d.uploaded_at).toLocaleString() : '-'}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-2">
+                              <a
+                                href={toAbsolute(d.view_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                title="View inline"
+                              >
+                                View
+                              </a>
+                              <a
+                                href={toAbsolute(d.download_url)}
+                                className="px-3 py-1 bg-gray-100 text-gray-800 rounded hover:bg-gray-200"
+                                title="Download"
+                              >
+                                Download
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EnhancedTenderEvaluation({ tender, onClose, embedded = false }) {
   const [activeTab, setActiveTab] = useState('compliance');
   const [saving, setSaving] = useState(false);
@@ -417,7 +537,8 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  const [committee] = useState([]); // TODO: wire when endpoint is available
+  const [committee, setCommittee] = useState([]);
+  const [chairpersonId, setChairpersonId] = useState('');
 
   const criteria = useMemo(() => {
     // Try to parse evaluation_criteria if it's JSON with a 'technical' array
@@ -443,6 +564,12 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
         const res = await axiosInstance.get(`/tenders/${tender.id}/bids/`);
         const data = Array.isArray(res.data) ? res.data : [];
         setBids(data);
+        // Load committee
+        try {
+          const c = await getEvaluationCommittee(tender.id);
+          setCommittee(c?.members || []);
+          if (c?.committee?.chairperson_id) setChairpersonId(String(c.committee.chairperson_id));
+        } catch { /* empty */ }
       } catch (e) {
         setLoadError(e?.response?.data?.error || e.message || 'Failed to load bids');
         setBids([]);
@@ -466,27 +593,7 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
     setSaving(true);
     try {
       // Build summary rows similar to SummaryTab
-      const compliantBids = bids.filter(b => evaluation[b.id]?.compliance?.pass === true);
-      const rows = compliantBids.map((b) => {
-        const techData = evaluation[b.id]?.technical || {};
-        let weightedTechScore = 0;
-        let maxPossibleTech = 0;
-        (criteria.technical || []).forEach(crit => {
-          const score = techData[crit.id]?.score || 0;
-          const weight = crit.weight || 0;
-          weightedTechScore += (score / (crit.max || 100)) * weight;
-          maxPossibleTech += weight;
-        });
-        const techScore = maxPossibleTech > 0 ? Math.round(weightedTechScore) : 0;
-        const price = evaluation[b.id]?.financial?.price ?? b.submitted_amount;
-        const prices = compliantBids.map(bid => evaluation[bid.id]?.financial?.price ?? bid.submitted_amount).filter(Boolean);
-        const lowestPrice = prices.length ? Math.min(...prices) : 0;
-        const financialScore = price && lowestPrice ? Math.round((lowestPrice / price) * 100) : 0;
-        const combinedScore = Math.round((techScore * 0.6) + (financialScore * 0.4));
-        return { id: b.id, bidder: b.bidder_name, techScore, financialScore, combinedScore, price };
-      });
-      rows.sort((a, b) => b.combinedScore - a.combinedScore);
-      rows.forEach((r, i) => r.rank = i + 1);
+      const rows = computeEvaluationRows(bids, criteria, evaluation);
 
       await axiosInstance.post(`/tenders/${tender.id}/evaluation/recommendation/`, {
         evaluation,
@@ -505,6 +612,32 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
   const complianceStatus = `${compliantCount + nonCompliantCount}/${bids.length}`;
 
   const currency = tender?.currency || (bids[0]?.currency) || 'ZMW';
+
+  const addCommitteeMember = () => {
+    const name = prompt('Enter member display name');
+    const user_id = prompt('Enter member user ID');
+    const role = prompt('Enter role (chairperson|secretary|member|observer)', 'member') || 'member';
+    const expertise = prompt('Enter expertise');
+    if (!user_id) return;
+    setCommittee((prev)=>[...prev, { name, user_id, role, expertise }]);
+  };
+
+  const removeCommitteeMember = (index) => {
+    setCommittee((prev)=> prev.filter((_, i)=> i!==index));
+  };
+
+  const saveCommittee = async () => {
+    if (!tender?.id) return;
+    try {
+      await saveEvaluationCommittee(tender.id, {
+        chairperson_id: chairpersonId,
+        members: committee.map(m=>({ user_id: m.user_id, role: m.role, expertise: m.expertise })),
+      });
+      alert('Committee saved');
+    } catch (e) {
+      alert(`Failed to save committee: ${e?.response?.data?.error || e.message}`);
+    }
+  };
 
   return (
     <>
@@ -530,6 +663,9 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
                     {saving ? 'Saving…' : 'Auto-saved'}
                   </div>
                 </div>
+                <a href={tender?.id ? `/tenders/${tender.id}?edit=1` : '#'} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 mr-2">
+                  Edit Tender
+                </a>
                 {onClose && (
                   <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
                     Back to Tenders
@@ -563,6 +699,12 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
               onClick={() => setActiveTab('financial')}
             >
               Financial Evaluation
+            </TabButton>
+               <TabButton
+              active={activeTab === 'documents'}
+              onClick={() => setActiveTab('documents')}
+            >
+              Uploaded Documents
             </TabButton>
             <TabButton
               active={activeTab === 'committee'}
@@ -604,8 +746,11 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
                     currency={currency}
                   />
                 )}
+                  {activeTab === 'documents' && (
+                  <UploadedDocumentsTab bids={bids} evaluation={evaluation} updateBidEval={updateBidEval} />
+                )}
                 {activeTab === 'committee' && (
-                  <CommitteeTab members={committee} />
+                  <CommitteeTab members={committee} onAdd={addCommitteeMember} onSave={saveCommittee} onRemove={removeCommitteeMember} setChairpersonId={setChairpersonId} chairpersonId={chairpersonId} />
                 )}
                 {activeTab === 'summary' && (
                   <SummaryTab
@@ -683,6 +828,12 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
               >
                 Committee
               </TabButton>
+                 <TabButton
+              active={activeTab === 'documents'}
+              onClick={() => setActiveTab('documents')}
+            >
+              Uploaded Documents
+            </TabButton>
               <TabButton
                 active={activeTab === 'summary'}
                 onClick={() => setActiveTab('summary')}
@@ -717,8 +868,11 @@ export default function EnhancedTenderEvaluation({ tender, onClose, embedded = f
                     />
                   )}
                   {activeTab === 'committee' && (
-                    <CommitteeTab members={committee} />
+                    <CommitteeTab members={committee} onAdd={addCommitteeMember} onSave={saveCommittee} onRemove={removeCommitteeMember} setChairpersonId={setChairpersonId} chairpersonId={chairpersonId} />
                   )}
+                    {activeTab === 'documents' && (
+                  <UploadedDocumentsTab bids={bids} evaluation={evaluation} updateBidEval={updateBidEval} />
+                )}
                   {activeTab === 'summary' && (
                     <SummaryTab
                       bids={bids}

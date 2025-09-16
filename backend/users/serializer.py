@@ -34,7 +34,7 @@ class ProcuringEntitySerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    phoneNumber = serializers.CharField()  # Change to CharField for custom validation
+    phoneNumber = serializers.CharField(source='phone')
     confirmPassword = serializers.CharField(write_only=True, required=True)
 
     class Meta:
@@ -79,20 +79,17 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('confirmPassword', None)
-
-        user = User(
-            email=validated_data['email'],
-            firstName=validated_data['firstName'],
-            lastName=validated_data['lastName'],
-            role=validated_data['role'],
-            phoneNumber=validated_data['phoneNumber'],
-        )
-        user.set_password(validated_data['password'])  # Hash the password
+        password = validated_data.pop('password')
+        # phoneNumber mapped via source='phone'; pop nested if present
+        if 'phone' not in validated_data and 'phoneNumber' in validated_data:
+            validated_data['phone'] = validated_data.pop('phoneNumber')
+        user = User(**validated_data)
+        user.set_password(password)
         user.save()
         return user
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
-        rep['phoneNumber'] = str(instance.phoneNumber)  # Ensure phoneNumber is serialized as a string
-        rep.pop('password', None)  # Exclude password from the response
+        rep['phoneNumber'] = str(getattr(instance, 'phone', '') or '')
+        rep.pop('password', None)
         return rep

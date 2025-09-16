@@ -3,7 +3,7 @@ import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings } from 
 import DashboardView from './DashboardView.jsx';
 import TendersView from './TendersView.jsx';
 import EvaluationView from './EvaluationView.jsx';
-import EvaluationModal from './Evaluation.jsx';
+import EnhancedTenderEvaluation from './Evaluation.jsx'; // Import the evaluation component
 import ContractsView from './ContractsView.jsx';
 import ReportsView from './ReportsView.jsx';
 import SettingsView from './SettingsView.jsx';
@@ -14,6 +14,7 @@ import NavBar from './base/NavBar.jsx';
 const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'dashboard');
   const [selectedTender, setSelectedTender] = useState(null);
+  const [showEvaluation, setShowEvaluation] = useState(false); // New state to control evaluation view
 
   useEffect(() => {
     // Update active tab if route-provided initialTab changes
@@ -58,13 +59,34 @@ const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
     { id: 'settings', label: 'Settings', icon: Settings }
   ];
 
+  // Handle tender selection for evaluation
+  const handleSelectTenderForEvaluation = (tender) => {
+    setSelectedTender(tender);
+    setShowEvaluation(true);
+  };
+
+  // Handle closing evaluation and returning to evaluation list
+  const handleCloseEvaluation = () => {
+    setShowEvaluation(false);
+    setSelectedTender(null);
+  };
+
+  // Handle tab changes - reset evaluation view when switching tabs
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    if (tabId !== 'evaluation') {
+      setShowEvaluation(false);
+      setSelectedTender(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <SideBar
         navigationItems={navigationItems}
         activeTab={activeTab}
-        onSelect={setActiveTab}
+        onSelect={handleTabChange}
       />
 
       {/* Main Content */}
@@ -76,10 +98,17 @@ const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
         <main className="flex-1 p-6 overflow-auto">
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'tenders' && <TendersView tenders={tenders} error={tendersError} />}
-          {activeTab === 'evaluation' && (
+          {activeTab === 'evaluation' && !showEvaluation && (
             <EvaluationView
               tenders={tenders.filter(t => t.status === 'evaluation')}
-              onSelectTender={setSelectedTender}
+              onSelectTender={handleSelectTenderForEvaluation}
+            />
+          )}
+          {activeTab === 'evaluation' && showEvaluation && selectedTender && (
+            <EnhancedTenderEvaluation
+              tender={selectedTender}
+              onClose={handleCloseEvaluation}
+              embedded={true}
             />
           )}
           {activeTab === 'contracts' && <ContractsView />}
@@ -87,10 +116,6 @@ const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
           {activeTab === 'settings' && <SettingsView />}
         </main>
       </div>
-
-      {selectedTender && (
-        <EvaluationModal tender={selectedTender} embedded onClose={() => setSelectedTender(null)} />
-      )}
     </div>
   );
 };

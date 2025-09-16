@@ -12,4 +12,6 @@ admin.site.register(CommitteeMember)
 admin.site.register(BidEvaluation)
 admin.site.register(Contract)
 admin.site.register(ContractMilestone)
+admin.site.register(EvaluationCriterion)
+admin.site.register(TenderEvaluationConfig)
 

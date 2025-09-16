@@ -1,12 +1,61 @@
 import React, { useState } from 'react';
 import { Search, Filter, FileText, Eye, Edit, FileCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import CreateTenderForm from './CreateTenderForm.jsx';
 import TenderDetailsModal from "./TenderDetailsModal.jsx";
-import EvaluationView from "./EvaluationView.jsx";
+import Evaluation from "./Evaluation.jsx";
+import { updateTender } from '../api/tender.js';
 
+
+const statusOptions = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'published', label: 'Published' },
+  { value: 'evaluation', label: 'Under Evaluation' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'awarded', label: 'Awarded' },
+  { value: 'completed', label: 'Completed' },
+];
+
+const EditStatus = ({ tender, onDone }) => {
+  const [status, setStatus] = useState(tender.status || 'draft');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateTender(tender.id, { status });
+      onDone(updated);
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.response?.data?.error || 'Failed to update status';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {error && <div className="text-red-600 text-sm">{error}</div>}
+      <label className="block text-sm text-gray-700">Status</label>
+      <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full border rounded px-3 py-2">
+        {statusOptions.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      <div className="flex justify-end gap-2 pt-2">
+        <button onClick={save} disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50">
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const TendersView = ({ tenders, error = null }) => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -15,9 +64,15 @@ const TendersView = ({ tenders, error = null }) => {
 
 
     const handleAction = (tender, type) => {
+     if (type === "evaluate" && action === "evaluate" && selectedTender?.id === tender.id) {
+        setAction(null);
+        setSelectedTender(null);
+        return;
+      }
       setSelectedTender(tender);
       setAction(type);
     };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'published': return 'bg-green-100 text-green-800';
@@ -92,7 +147,7 @@ const TendersView = ({ tenders, error = null }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filtered.map((tender) => (
+             {filtered.map((tender) => (
               <tr key={tender.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link to={`/tenders/${tender.id}`} className="block group">
@@ -114,12 +169,20 @@ const TendersView = ({ tenders, error = null }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex justify-end space-x-2">
                     <button className="text-blue-600 hover:text-blue-900" onClick={() => handleAction(tender, "view")} ><Eye className="h-4 w-4" /></button>
-                    <button className="text-green-600 hover:text-green-900" onClick={() => handleAction(tender, "edit")}><Edit className="h-4 w-4" /></button>
-                    <button className="text-purple-600 hover:text-purple-900" onClick={() => handleAction(tender ,"evaluate")}><FileCheck className="h-4 w-4" /></button>
+                    <Link className="text-green-600 hover:text-green-900" to={`/tenders/${tender.id}?edit=1`}><Edit className="h-4 w-4" /></Link>
+                    {/* Evaluation icon toggles on same click and shows active state */}
+                    <button
+                      aria-pressed={action === "evaluate" && selectedTender?.id === tender.id}
+                      className={`hover:text-purple-900 ${action === "evaluate" && selectedTender?.id === tender.id ? "text-purple-900 ring-2 ring-purple-300 rounded" : "text-purple-600"}`}
+                      onClick={() => handleAction(tender ,"evaluate")}
+                    >
+                      <FileCheck className="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
             ))}
+
           </tbody>
         </table>
       </div>
@@ -127,7 +190,13 @@ const TendersView = ({ tenders, error = null }) => {
       {showCreate && (
         <CreateTenderForm
           onCancel={() => setShowCreate(false)}
-          onSuccess={() => setShowCreate(false)}
+          onSuccess={(result) => {
+            setShowCreate(false);
+            const id = result?.id;
+            if (id) {
+              navigate(`/tenders/${id}/setup-criteria`);
+            }
+          }}
         />
       )}
         {action === "view" && selectedTender && (
@@ -137,17 +206,10 @@ const TendersView = ({ tenders, error = null }) => {
       />
     )}
 
-    {action === "edit" && selectedTender && (
-      <CreateTenderForm
-        tender={selectedTender}
-        onCancel={() => setAction(null)}
-        onSuccess={() => setAction(null)}
-      />
-    )}
 
     {action === "evaluate" && selectedTender && (
-      <EvaluationView
-       tenders={tenders.filter(t => t.status === 'evaluation')}
+      <Evaluation
+      tender={selectedTender}
               onSelectTender={setSelectedTender}
       />
     )}

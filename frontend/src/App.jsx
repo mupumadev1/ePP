@@ -4,9 +4,16 @@ import TenderAdminDashboard from './components/MainComponent.jsx';
 import LoginView from './components/LoginView.jsx';
 import Evaluation from './components/Evaluation.jsx';
 import TenderDetail from './components/TenderDetail.jsx';
+import TenderCriteriaSetup from './components/TenderCriteriaSetup.jsx';
 import AppLayout from './components/base/AppLayout.jsx';
 import { getCsrf, me as meApi, login as loginApi, requestPasswordReset as requestPasswordResetApi, logout as logoutApi } from './api/auth.jsx';
 import axiosInstance from './api/axiosInstance.jsx';
+import BidderDashboard from './components/bidder/dashboard/BidderDashboard.jsx';
+import OpportunitiesList from './components/bidder/opportunities/OpportunitiesList.jsx';
+import OpportunitiesDetail from './components/bidder/opportunities/OpportunitiesDetail.jsx';
+import BidSubmission from './components/bidder/bids/BidSubmission.jsx';
+import BidStatus from './components/bidder/bids/BidStatus.jsx';
+import Unauthorized from './components/Unauthorized.jsx';
 
 const TenderDetailWithLayout = ({ onLogout }) => (
   <AppLayout title="tenders" onLogout={onLogout}>
@@ -62,6 +69,7 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Memoize CSRF prefetch function
   const prefetchCsrf = useCallback(async () => {
@@ -78,10 +86,10 @@ const App = () => {
   const verifySession = useCallback(async () => {
     try {
       const data = await meApi();
-      return Boolean(data?.authenticated);
+      return data; // { authenticated, user: {...} }
     } catch (error) {
       if (error.response?.status === 401) {
-        return false; // Unauthenticated, not an error
+        return { authenticated: false };
       }
       throw error; // Network error or other issue
     }
@@ -110,21 +118,28 @@ const App = () => {
         // Check if user was previously authenticated
         const storedAuth = localStorage.getItem('isAuthenticated') === 'true';
         if (storedAuth) {
-          const isValid = await verifySession();
-          if (isValid) {
+          const session = await verifySession();
+          if (session?.authenticated) {
             setIsAuthenticated(true);
+            // Determine role from available fields
+            const isPrivileged = ['admin', 'evaluator'].includes(session?.user?.user_type) || Boolean(session?.user?.is_superuser);
+            setIsAdmin(isPrivileged);
+
           } else {
             localStorage.removeItem('isAuthenticated');
             setIsAuthenticated(false);
+            setIsAdmin(false);
           }
         } else {
           setIsAuthenticated(false);
+          setIsAdmin(false);
         }
       } catch (err) {
         console.error('Initialization error:', err);
         setError('Failed to initialize app. Please refresh the page.');
         localStorage.removeItem('isAuthenticated');
         setIsAuthenticated(false);
+        setIsAdmin(false);
       } finally {
         setLoading(false);
       }
@@ -140,6 +155,14 @@ const App = () => {
       await loginApi({ username, password });
       localStorage.setItem('isAuthenticated', 'true');
       setIsAuthenticated(true);
+      // Fetch user info to determine role
+      try {
+        const session = await meApi();
+        const isPrivileged = ['admin', 'evaluator'].includes(session?.user?.user_type) || Boolean(session?.user?.is_superuser);
+        setIsAdmin(isPrivileged);
+      } catch {
+        setIsAdmin(false);
+      }
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -167,6 +190,7 @@ const App = () => {
     } finally {
       localStorage.removeItem('isAuthenticated');
       setIsAuthenticated(false);
+      setIsAdmin(false);
     }
   }, []);
 
@@ -197,13 +221,15 @@ const App = () => {
     );
   }
 
+  const homePath = isAuthenticated ? (isAdmin ? '/dashboard' : '/bidder/dashboard') : '/login';
+
   return (
     <Routes>
       <Route
         path="/login"
         element={
           isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
+            <Navigate to={homePath} replace />
           ) : (
             <LoginView onLogin={handleLogin} onForgotPassword={handleForgotPassword} />
           )
@@ -213,79 +239,105 @@ const App = () => {
       {/* Default route redirects based on auth */}
       <Route
         path="/"
-        element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
+        element={<Navigate to={homePath} replace />}
       />
 
       {/* Protected routes rendering the admin dashboard with different initial tabs */}
       <Route
         path="/dashboard"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="dashboard" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
       <Route
         path="/tenders"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="tenders" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
       <Route
         path="/evaluation"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="evaluation" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
       <Route
         path="/contracts"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="contracts" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
       <Route
         path="/reports"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="reports" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
       <Route
         path="/settings"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="settings" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
 
-      {/* Tender detail page */}
+      {/* Tender detail page: publicly viewable; login required is enforced only for bidding actions elsewhere */}
       <Route
         path="/tenders/:tenderId"
+        element={<TenderDetailWithLayout onLogout={isAuthenticated ? handleLogout : undefined} />}
+      />
+
+      {/* Tender criteria setup route */}
+      <Route
+        path="/tenders/:tenderId/setup-criteria"
         element={
-          isAuthenticated ? (
-            <TenderDetailWithLayout onLogout={handleLogout} />
+          isAuthenticated && isAdmin ? (
+            <AppLayout title="tenders" onLogout={handleLogout}>
+              <div className="p-6">
+                <div className="bg-white rounded-lg shadow">
+                  <TenderCriteriaSetup />
+                </div>
+              </div>
+            </AppLayout>
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
       />
@@ -294,12 +346,40 @@ const App = () => {
       <Route
         path="/tenders/:tenderId/evaluate"
         element={
-          isAuthenticated ? (
+          isAuthenticated && isAdmin ? (
             <TenderEvaluationWithLayout onLogout={handleLogout} />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} />
           ) : (
-            <Navigate to="/login" replace />
+            <Unauthorized isAuthenticated={false} />
           )
         }
+      />
+
+      {/* Bidder routes */}
+      <Route
+        path="/bidder"
+        element={<Navigate to={homePath} replace />}
+      />
+      <Route
+        path="/bidder/dashboard"
+        element={isAuthenticated ? (<BidderDashboard onLogout={handleLogout} />) : (<Navigate to="/login" replace />)}
+      />
+      <Route
+        path="/bidder/opportunities"
+        element={isAuthenticated ? (<OpportunitiesList onLogout={handleLogout} />) : (<OpportunitiesList />)}
+      />
+      <Route
+        path="/bidder/opportunities/:id"
+        element={isAuthenticated ? (<OpportunitiesDetail onLogout={handleLogout} />) : (<OpportunitiesDetail />)}
+      />
+      <Route
+        path="/bidder/opportunities/:tenderId/bid"
+        element={isAuthenticated ? (<BidSubmission onLogout={handleLogout} />) : (<Navigate to="/login" replace />)}
+      />
+      <Route
+        path="/bidder/bids"
+        element={isAuthenticated ? (<BidStatus onLogout={handleLogout} />) : (<Navigate to="/login" replace />)}
       />
 
       {/* Catch-all */}
