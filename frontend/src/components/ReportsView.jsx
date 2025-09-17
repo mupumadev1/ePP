@@ -90,11 +90,11 @@ const ReportsView = () => {
         <div className="flex items-center space-x-3">
           {loading && <span className="text-sm text-gray-500">Loading…</span>}
           {error && <span className="text-sm text-red-600">{error}</span>}
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center">
+          <button className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-500 flex items-center">
             <Download className="h-4 w-4 mr-2" />
             Export Data
           </button>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center">
+          <button className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 flex items-center">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Report
           </button>
@@ -111,7 +111,7 @@ const ReportsView = () => {
                 onClick={() => setSelectedReport(report.id)}
                 className={`w-full flex items-center px-3 py-2 text-sm rounded-md ${
                   selectedReport === report.id
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-blue-100 text-blue-500'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
@@ -134,7 +134,7 @@ const ReportsView = () => {
                       <p className="text-sm text-green-600">&nbsp;</p>
                     </div>
                     <div className="p-3 bg-blue-100 rounded-lg">
-                      <FileText className="h-6 w-6 text-blue-600" />
+                      <FileText className="h-6 w-6 text-blue-500" />
                     </div>
                   </div>
                 </div>
@@ -157,7 +157,7 @@ const ReportsView = () => {
                     <div>
                       <p className="text-sm font-medium text-gray-500">Active Contracts</p>
                       <p className="text-3xl font-bold text-gray-900">{dashboard?.stats?.find(s=>s.label==='Active Contracts')?.value ?? '—'}</p>
-                      <p className="text-sm text-blue-600">&nbsp;</p>
+                      <p className="text-sm text-blue-500">&nbsp;</p>
                     </div>
                     <div className="p-3 bg-purple-100 rounded-lg">
                       <Users className="h-6 w-6 text-purple-600" />
@@ -197,7 +197,7 @@ const ReportsView = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="border border-gray-200 rounded p-4">
                     <h4 className="font-medium text-gray-900">Average Bid Count per Tender</h4>
-                    <p className="text-2xl font-bold text-blue-600">{procAnalytics?.average_bid_count_per_tender ?? '—'}</p>
+                    <p className="text-2xl font-bold text-blue-500">{procAnalytics?.average_bid_count_per_tender ?? '—'}</p>
                   </div>
                   <div className="border border-gray-200 rounded p-4">
                     <h4 className="font-medium text-gray-900">Average Evaluation Time</h4>

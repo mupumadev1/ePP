@@ -31,7 +31,7 @@ const EvaluationView = ({ tenders, onSelectTender }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Bid Evaluation</h2>
-        <button className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center">
+        <button className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-500 flex items-center">
           <Users className="h-4 w-4 mr-2" />
           Create Committee
         </button>
@@ -61,14 +61,14 @@ const EvaluationView = ({ tenders, onSelectTender }) => {
                     {onSelectTender ? (
                       <button
                         onClick={() => onSelectTender(tender)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-500"
                       >
                         Evaluate
                       </button>
                     ) : (
                       <a
                         href={`/tenders/${tender.id}/evaluate`}
-                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 inline-block"
+                        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-500 inline-block"
                       >
                         Evaluate
                       </a>
@@ -90,7 +90,7 @@ const EvaluationView = ({ tenders, onSelectTender }) => {
             )}
             <div className="space-y-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{loading ? '…' : summary.pending_evaluations}</div>
+                <div className="text-2xl font-bold text-blue-500">{loading ? '…' : summary.pending_evaluations}</div>
                 <div className="text-sm text-gray-500">Pending Evaluations</div>
               </div>
               <div className="text-center">

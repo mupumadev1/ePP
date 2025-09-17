@@ -8,7 +8,7 @@ function TabButton({ active, onClick, children, count }) {
     <button
       onClick={onClick}
       className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 ${
-        active ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+        active ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
       }`}
     >
       {children}
@@ -26,7 +26,7 @@ function TabButton({ active, onClick, children, count }) {
 function ComplianceTab({ bids, evaluation, updateBidEval }) {
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-500 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900">Compliance Evaluation</h4>
         <p className="text-sm text-blue-700 mt-1">
           Verify each bid meets mandatory requirements. Non-compliant bids are automatically disqualified.
@@ -262,7 +262,7 @@ function CommitteeTab({ members = [], onAdd, onSave, onRemove, setChairpersonId,
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium text-gray-900">Evaluation Committee</h3>
         <div className="flex gap-2">
-          <button onClick={onAdd} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2">
+          <button onClick={onAdd} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-500 flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Add Member
           </button>
@@ -303,9 +303,9 @@ function SummaryTab({ bids, criteria, evaluation, onSubmit, submitting }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-500 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center gap-2">
-          <Calculator className="h-5 w-5 text-blue-600" />
+          <Calculator className="h-5 w-5 text-blue-500" />
           <h4 className="font-medium text-blue-900">Evaluation Summary</h4>
         </div>
         <p className="text-sm text-blue-700 mt-1">
@@ -369,7 +369,7 @@ function SummaryTab({ bids, criteria, evaluation, onSubmit, submitting }) {
         <button
           disabled={submitting || rows.length === 0}
           onClick={onSubmit}
-          className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <FileText className="h-4 w-4" />
           {submitting ? 'Submitting…' : 'Submit Recommendation'}
@@ -502,7 +502,7 @@ function UploadedDocumentsTab({ bids }) {
                                 href={toAbsolute(d.view_url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-500"
                                 title="View inline"
                               >
                                 View

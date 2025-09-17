@@ -51,7 +51,7 @@ const ContractsView = () => {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Contract Management</h2>
         <div className="flex space-x-3">
-          <button className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center">
+          <button className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 flex items-center">
             <Award className="h-4 w-4 mr-2" />
             Award Contract
           </button>

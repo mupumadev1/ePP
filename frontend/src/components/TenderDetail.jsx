@@ -37,7 +37,7 @@ const TenderDetail = () => {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-3" />
         <div className="text-gray-600">Loading tender…</div>
       </div>
     );
@@ -47,7 +47,7 @@ const TenderDetail = () => {
     return (
       <div className="p-6">
         <div className="mb-4 p-3 bg-red-50 text-red-700 rounded">{error}</div>
-        <Link to="/tenders" className="text-blue-600 hover:underline">Back to Tenders</Link>
+        <Link to="/tenders" className="text-blue-500 hover:underline">Back to Tenders</Link>
       </div>
     );
   }
@@ -56,7 +56,7 @@ const TenderDetail = () => {
     return (
       <div className="p-6">
         <div className="text-gray-600">Tender not found.</div>
-        <Link to="/tenders" className="text-blue-600 hover:underline">Back to Tenders</Link>
+        <Link to="/tenders" className="text-blue-500 hover:underline">Back to Tenders</Link>
       </div>
     );
   }
@@ -107,7 +107,7 @@ const TenderDetail = () => {
               >Overview</button>
               <button
                 onClick={() => setMode('evaluate')}
-                className={`px-3 py-2 rounded ${mode === 'evaluate' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                className={`px-3 py-2 rounded ${mode === 'evaluate' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
               >Evaluate</button>
               <button
                 onClick={() => setMode('criteria')}
