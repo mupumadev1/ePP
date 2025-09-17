@@ -1,4 +1,3 @@
-
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
@@ -77,6 +76,45 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.username} ({self.get_user_type_display()})"
+
+    @property
+    def is_supplier(self):
+        """Check if user is a supplier"""
+        return self.user_type == 'supplier'
+
+    @property
+    def is_admin_user(self):
+        """Check if user has admin privileges"""
+        return self.user_type == 'admin' or self.is_superuser
+
+    @property
+    def is_evaluator_user(self):
+        """Check if user is an evaluator"""
+        return self.user_type == 'evaluator'
+
+    @property
+    def is_procuring_entity_user(self):
+        """Check if user belongs to a procuring entity"""
+        return self.user_type == 'procuring_entity'
+
+    @property
+    def can_access_admin_dashboard(self):
+        """Check if user can access admin dashboard"""
+        return self.is_admin_user or self.is_evaluator_user or self.is_procuring_entity_user
+
+    @property
+    def can_access_bidder_dashboard(self):
+        """Check if user can access bidder dashboard"""
+        return self.is_supplier
+
+    def get_dashboard_route(self):
+        """Get the appropriate dashboard route for this user"""
+        if self.can_access_admin_dashboard:
+            return '/dashboard'
+        elif self.can_access_bidder_dashboard:
+            return '/bidder/dashboard'
+        else:
+            return '/login'  # Fallback for inactive/suspended users
 
 
 class UserProfile(models.Model):

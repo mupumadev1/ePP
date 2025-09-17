@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import RegistrationForm from './RegistrationForm.jsx';
 
 function LoginForm({ onLogin, onForgotPassword }) {
   const [credentials, setCredentials] = useState({
@@ -8,6 +8,7 @@ function LoginForm({ onLogin, onForgotPassword }) {
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
 
   // Forgot password modal state
   const [showForgot, setShowForgot] = useState(false);
@@ -59,15 +60,28 @@ function LoginForm({ onLogin, onForgotPassword }) {
       if (typeof onForgotPassword === 'function') {
         await onForgotPassword({ email: resetEmail });
       }
-      // Show a generic success message regardless of actual user existence per security best practices
       setForgotStatus({ type: 'success', message: 'If an account with that email exists, a reset link has been sent.' });
     } catch (err) {
       console.error('Error requesting password reset:', err);
-      // Still show generic success to avoid user enumeration, or show mild error
       setForgotStatus({ type: 'success', message: 'If an account with that email exists, a reset link has been sent.' });
     } finally {
       setForgotLoading(false);
     }
+  };
+
+  const handleShowRegistration = () => {
+    setShowRegistration(true);
+    setError(null);
+  };
+
+  const handleBackToLogin = () => {
+    setShowRegistration(false);
+    setError(null);
+  };
+
+  const handleRegistrationSuccess = () => {
+    setShowRegistration(false);
+    setError(null);
   };
 
   return (
@@ -82,73 +96,94 @@ function LoginForm({ onLogin, onForgotPassword }) {
         {/* Dark overlay */}
         <div className="absolute inset-0 bg-blue-900 bg-opacity-70"></div>
         <div className="relative p-20 flex flex-col justify-center text-white max-w-lg">
-          <h1 className="text-4xl font-bold mb-4">Welcome to  Smart Tender e-Procurement Portal</h1>
+          <h1 className="text-4xl font-bold mb-4">Welcome to Smart Tender e-Procurement Portal</h1>
           <p className="text-lg">
             Streamlining your procurement processes electronically.
           </p>
         </div>
       </div>
 
-      {/* Login form section */}
+      {/* Form section */}
       <div className="flex flex-1 items-center justify-center bg-white p-8">
         <div className="w-full max-w-md">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">
-            Sign in to your account
-          </h2>
+          {showRegistration ? (
+            <RegistrationForm
+              onBackToLogin={handleBackToLogin}
+              onRegistrationSuccess={handleRegistrationSuccess}
+            />
+          ) : (
+            <>
+              <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+                Sign in to your account
+              </h2>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-6">
-              {error}
-            </div>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-6">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={credentials.username}
+                    onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={credentials.password}
+                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                  />
+                </div>
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {loading ? 'Signing In...' : 'Sign In'}
+                </button>
+
+                <div className="flex flex-col space-y-3 text-sm text-center">
+                  <a
+                    href="#"
+                    onClick={openForgotPassword}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Forgot your password?
+                  </a>
+
+                  <div className="text-gray-600">
+                    Don't have an account?{' '}
+                    <button
+                      onClick={handleShowRegistration}
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      Register as Supplier
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <input
-                type="text"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={credentials.username}
-                onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={credentials.password}
-                onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-              />
-            </div>
-
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {loading ? 'Signing In...' : 'Sign In'}
-            </button>
-            <div className="text-sm text-center">
-              <a
-                href="#"
-                onClick={openForgotPassword}
-                className="text-blue-600 hover:underline"
-              >
-                Forgot your password?
-              </a>
-            </div>
-          </div>
         </div>
       </div>
 
+      {/* Forgot Password Modal */}
       {showForgot && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
@@ -161,7 +196,7 @@ function LoginForm({ onLogin, onForgotPassword }) {
               </div>
             )}
 
-            <form onSubmit={submitForgotPassword} className="space-y-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
                 <input
@@ -181,14 +216,14 @@ function LoginForm({ onLogin, onForgotPassword }) {
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  onClick={submitForgotPassword}
                   disabled={forgotLoading}
                   className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   {forgotLoading ? 'Sending...' : 'Send reset link'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

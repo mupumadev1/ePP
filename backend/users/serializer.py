@@ -36,11 +36,25 @@ class ProcuringEntitySerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     phoneNumber = serializers.CharField(source='phone')
     confirmPassword = serializers.CharField(write_only=True, required=True)
+    # Add role-based fields
+    is_supplier = serializers.BooleanField(read_only=True)
+    is_admin_user = serializers.BooleanField(read_only=True)
+    is_evaluator_user = serializers.BooleanField(read_only=True)
+    is_procuring_entity_user = serializers.BooleanField(read_only=True)
+    can_access_admin_dashboard = serializers.BooleanField(read_only=True)
+    can_access_bidder_dashboard = serializers.BooleanField(read_only=True)
+    dashboard_route = serializers.CharField(source='get_dashboard_route', read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'user_type','username', 'phoneNumber', 'password', 'confirmPassword',
-                  'reset_password_token', 'reset_password_expires', 'is_active']
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'user_type', 'username', 'phoneNumber',
+            'password', 'confirmPassword', 'reset_password_token', 'reset_password_expires',
+            'is_active', 'status',
+            # Role-based fields
+            'is_supplier', 'is_admin_user', 'is_evaluator_user', 'is_procuring_entity_user',
+            'can_access_admin_dashboard', 'can_access_bidder_dashboard', 'dashboard_route'
+        ]
         extra_kwargs = {
             'password': {'write_only': True},
             'email': {'required': True},
@@ -93,3 +107,23 @@ class UserSerializer(serializers.ModelSerializer):
         rep['phoneNumber'] = str(getattr(instance, 'phone', '') or '')
         rep.pop('password', None)
         return rep
+
+
+class UserRoleSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for user role information"""
+    # Add computed fields
+    is_supplier = serializers.BooleanField(read_only=True)
+    is_admin_user = serializers.BooleanField(read_only=True)
+    is_evaluator_user = serializers.BooleanField(read_only=True)
+    is_procuring_entity_user = serializers.BooleanField(read_only=True)
+    can_access_admin_dashboard = serializers.BooleanField(read_only=True)
+    can_access_bidder_dashboard = serializers.BooleanField(read_only=True)
+    dashboard_route = serializers.CharField(source='get_dashboard_route', read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'user_type', 'status', 'is_active',
+            'is_supplier', 'is_admin_user', 'is_evaluator_user', 'is_procuring_entity_user',
+            'can_access_admin_dashboard', 'can_access_bidder_dashboard', 'dashboard_route'
+        ]

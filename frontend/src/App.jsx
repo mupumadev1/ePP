@@ -69,7 +69,16 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState({
+    userType: null,
+    canAccessAdmin: false,
+    canAccessBidder: false,
+    dashboardRoute: '/login',
+    isSupplier: false,
+    isAdmin: false,
+    isEvaluator: false,
+    isProcuringEntity: false
+  });
 
   // Memoize CSRF prefetch function
   const prefetchCsrf = useCallback(async () => {
@@ -95,16 +104,47 @@ const App = () => {
     }
   }, []);
 
+  // Update user role state from session data
+  const updateUserRole = useCallback((sessionData) => {
+    if (sessionData?.authenticated && sessionData?.user) {
+      const user = sessionData.user;
+      const roleInfo = user.role_info || {};
+
+      setUserRole({
+        userType: user.user_type,
+        canAccessAdmin: roleInfo.can_access_admin_dashboard || false,
+        canAccessBidder: roleInfo.can_access_bidder_dashboard || false,
+        dashboardRoute: roleInfo.dashboard_route || '/login',
+        isSupplier: roleInfo.is_supplier || false,
+        isAdmin: roleInfo.is_admin_user || false,
+        isEvaluator: roleInfo.is_evaluator_user || false,
+        isProcuringEntity: roleInfo.is_procuring_entity_user || false
+      });
+    } else {
+      setUserRole({
+        userType: null,
+        canAccessAdmin: false,
+        canAccessBidder: false,
+        dashboardRoute: '/login',
+        isSupplier: false,
+        isAdmin: false,
+        isEvaluator: false,
+        isProcuringEntity: false
+      });
+    }
+  }, []);
+
   // Handle logout event from interceptor
   useEffect(() => {
     const handleLogout = () => {
       setIsAuthenticated(false);
+      updateUserRole({ authenticated: false });
       localStorage.removeItem('isAuthenticated');
     };
 
     window.addEventListener('auth-logout', handleLogout);
     return () => window.removeEventListener('auth-logout', handleLogout);
-  }, []);
+  }, [updateUserRole]);
 
   // Initialize app
   useEffect(() => {
@@ -121,47 +161,49 @@ const App = () => {
           const session = await verifySession();
           if (session?.authenticated) {
             setIsAuthenticated(true);
-            // Determine role from available fields
-            const isPrivileged = ['admin', 'evaluator'].includes(session?.user?.user_type) || Boolean(session?.user?.is_superuser);
-            setIsAdmin(isPrivileged);
-
+            updateUserRole(session);
           } else {
             localStorage.removeItem('isAuthenticated');
             setIsAuthenticated(false);
-            setIsAdmin(false);
+            updateUserRole({ authenticated: false });
           }
         } else {
           setIsAuthenticated(false);
-          setIsAdmin(false);
+          updateUserRole({ authenticated: false });
         }
       } catch (err) {
         console.error('Initialization error:', err);
         setError('Failed to initialize app. Please refresh the page.');
         localStorage.removeItem('isAuthenticated');
         setIsAuthenticated(false);
-        setIsAdmin(false);
+        updateUserRole({ authenticated: false });
       } finally {
         setLoading(false);
       }
     };
 
     init();
-  }, [prefetchCsrf, verifySession]);
+  }, [prefetchCsrf, verifySession, updateUserRole]);
 
   const handleLogin = async ({ username, password }) => {
     try {
       setError(null);
       await prefetchCsrf();
-      await loginApi({ username, password });
+      const loginResponse = await loginApi({ username, password });
       localStorage.setItem('isAuthenticated', 'true');
       setIsAuthenticated(true);
-      // Fetch user info to determine role
+
+      // Fetch updated user info to get role details
       try {
         const session = await meApi();
-        const isPrivileged = ['admin', 'evaluator'].includes(session?.user?.user_type) || Boolean(session?.user?.is_superuser);
-        setIsAdmin(isPrivileged);
+        updateUserRole(session);
       } catch {
-        setIsAdmin(false);
+        // Fallback to login response data if me() fails
+        if (loginResponse?.role_info) {
+          updateUserRole({ authenticated: true, user: loginResponse });
+        } else {
+          updateUserRole({ authenticated: false });
+        }
       }
       return { success: true };
     } catch (error) {
@@ -190,9 +232,11 @@ const App = () => {
     } finally {
       localStorage.removeItem('isAuthenticated');
       setIsAuthenticated(false);
-      setIsAdmin(false);
+      updateUserRole({ authenticated: false });
+      // Redirect to login page after logout
+      window.location.replace('/login');
     }
-  }, []);
+  }, [updateUserRole]);
 
   if (loading) {
     return (
@@ -221,7 +265,7 @@ const App = () => {
     );
   }
 
-  const homePath = isAuthenticated ? (isAdmin ? '/dashboard' : '/bidder/dashboard') : '/login';
+  const homePath = isAuthenticated ? userRole.dashboardRoute : '/login';
 
   return (
     <Routes>
@@ -236,20 +280,20 @@ const App = () => {
         }
       />
 
-      {/* Default route redirects based on auth */}
+      {/* Default route redirects based on auth and role */}
       <Route
         path="/"
         element={<Navigate to={homePath} replace />}
       />
 
-      {/* Protected routes rendering the admin dashboard with different initial tabs */}
+      {/* Admin-only routes */}
       <Route
         path="/dashboard"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="dashboard" />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
@@ -258,10 +302,10 @@ const App = () => {
       <Route
         path="/tenders"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="tenders" />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
@@ -270,10 +314,10 @@ const App = () => {
       <Route
         path="/evaluation"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="evaluation" />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
@@ -282,10 +326,10 @@ const App = () => {
       <Route
         path="/contracts"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="contracts" />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
@@ -294,10 +338,10 @@ const App = () => {
       <Route
         path="/reports"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="reports" />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
@@ -306,10 +350,10 @@ const App = () => {
       <Route
         path="/settings"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderAdminDashboard onLogout={handleLogout} initialTab="settings" />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
@@ -322,11 +366,11 @@ const App = () => {
         element={<TenderDetailWithLayout onLogout={isAuthenticated ? handleLogout : undefined} />}
       />
 
-      {/* Tender criteria setup route */}
+      {/* Admin-only tender management routes */}
       <Route
         path="/tenders/:tenderId/setup-criteria"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <AppLayout title="tenders" onLogout={handleLogout}>
               <div className="p-6">
                 <div className="bg-white rounded-lg shadow">
@@ -335,55 +379,84 @@ const App = () => {
               </div>
             </AppLayout>
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
         }
       />
 
-      {/* Example standalone evaluation route (optional) */}
       <Route
         path="/tenders/:tenderId/evaluate"
         element={
-          isAuthenticated && isAdmin ? (
+          isAuthenticated && userRole.canAccessAdmin ? (
             <TenderEvaluationWithLayout onLogout={handleLogout} />
           ) : isAuthenticated ? (
-            <Unauthorized isAuthenticated={true} />
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
           ) : (
             <Unauthorized isAuthenticated={false} />
           )
         }
       />
 
-      {/* Bidder routes */}
+      {/* Bidder routes - accessible to suppliers and public (for viewing) */}
       <Route
         path="/bidder"
         element={<Navigate to={homePath} replace />}
       />
+
+      {/* Supplier-only bidder dashboard */}
       <Route
         path="/bidder/dashboard"
-        element={isAuthenticated ? (<BidderDashboard onLogout={handleLogout} />) : (<Navigate to="/login" replace />)}
+        element={
+          isAuthenticated && userRole.canAccessBidder ? (
+            <BidderDashboard onLogout={handleLogout} />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
+
+      {/* Public opportunities viewing */}
       <Route
         path="/bidder/opportunities"
-        element={isAuthenticated ? (<OpportunitiesList onLogout={handleLogout} />) : (<OpportunitiesList />)}
+        element={<OpportunitiesList onLogout={isAuthenticated ? handleLogout : undefined} />}
       />
       <Route
         path="/bidder/opportunities/:id"
-        element={isAuthenticated ? (<OpportunitiesDetail onLogout={handleLogout} />) : (<OpportunitiesDetail />)}
+        element={<OpportunitiesDetail onLogout={isAuthenticated ? handleLogout : undefined} />}
       />
+
+      {/* Supplier-only bidding routes */}
       <Route
         path="/bidder/opportunities/:tenderId/bid"
-        element={isAuthenticated ? (<BidSubmission onLogout={handleLogout} />) : (<Navigate to="/login" replace />)}
+        element={
+          isAuthenticated && userRole.canAccessBidder ? (
+            <BidSubmission onLogout={handleLogout} />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
       <Route
         path="/bidder/bids"
-        element={isAuthenticated ? (<BidStatus onLogout={handleLogout} />) : (<Navigate to="/login" replace />)}
+        element={
+          isAuthenticated && userRole.canAccessBidder ? (
+            <BidStatus onLogout={handleLogout} />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
 
       {/* Catch-all */}
-      <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={homePath} replace />} />
     </Routes>
   );
 };
