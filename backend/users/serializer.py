@@ -127,3 +127,25 @@ class UserRoleSerializer(serializers.ModelSerializer):
             'is_supplier', 'is_admin_user', 'is_evaluator_user', 'is_procuring_entity_user',
             'can_access_admin_dashboard', 'can_access_bidder_dashboard', 'dashboard_route'
         ]
+
+
+class SupplierProfileSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_full_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        from users.models import SupplierProfile as SP
+        model = SP
+        fields = [
+            'id', 'user', 'user_email', 'user_username', 'user_full_name',
+            'business_reg_number', 'business_category', 'years_of_experience',
+            'verification_status', 'verified_at', 'admin_notes', 'created_at'
+        ]
+        read_only_fields = ['verification_status', 'verified_at', 'created_at']
+
+    def get_user_full_name(self, obj):
+        first = getattr(obj.user, 'first_name', '') or ''
+        last = getattr(obj.user, 'last_name', '') or ''
+        name = (first + ' ' + last).strip()
+        return name or obj.user.username

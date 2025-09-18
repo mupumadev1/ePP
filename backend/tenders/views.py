@@ -1,13 +1,13 @@
 import json
 import uuid
 
-from django.db import transaction
+from django.db import transaction, models
 from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_protect
 from django.utils.decorators import method_decorator
 from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Count
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
@@ -190,7 +190,8 @@ def update_tender(request, tender_id):
 
     # Permissions: only creator or entity staff; keep minimal rule here
     user = request.user
-    if not (user.is_superuser or user == tender.created_by):
+    print(user.id ,  tender.created_by_id)
+    if not (user.is_superuser or user.id == tender.created_by_id):
         # If user belongs to the same procuring entity, allow
         try:
             from users.models import EntityUser
@@ -311,8 +312,20 @@ class DashboardView(APIView):
             .values('reference_number', 'title', 'status','id')[:3]
         )
 
-        # If no pending action model, return placeholders or an empty list
-        pending_actions = []  # or compute based on your rules
+        # Pending actions: include pending supplier verifications
+        try:
+            from users.models import SupplierProfile as SP
+            pending_suppliers = SP.objects.filter(verification_status='pending').count()
+        except Exception:
+            pending_suppliers = 0
+
+        pending_actions = []
+        if pending_suppliers:
+            pending_actions.append({
+                'action': f"Verify Supplier Registrations ({pending_suppliers})",
+                'tender': 'Supplier onboarding',
+                'urgency': 'medium' if pending_suppliers > 0 else 'low'
+            })
 
         data = {
             "stats": [
@@ -488,6 +501,122 @@ def evaluation_overview(request):
 
 from rest_framework.parsers import JSONParser
 
+
+# Add this to backend/tenders/views.py
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Public access, no authentication required
+def public_tenders(request):
+    """
+    Return published tenders for public viewing.
+    Only includes published tenders that are still accepting bids.
+    """
+    # Only show published tenders
+    qs = (
+        Tender.objects
+        .filter(status='published')
+        .select_related('procuring_entity', 'category', 'subcategory')
+        .order_by('-created_at')
+    )
+
+    # Optional filtering
+    category = request.query_params.get('category')
+    search = request.query_params.get('search')
+
+    if category:
+        qs = qs.filter(category__name__icontains=category)
+
+    if search:
+        qs = qs.filter(
+            models.Q(title__icontains=search) |
+            models.Q(reference_number__icontains=search) |
+            models.Q(procuring_entity__name__icontains=search)
+        )
+
+    # Serialize with limited fields for public view
+    data = []
+    for tender in qs:
+        data.append({
+            'id': str(tender.id),
+            'reference_number': tender.reference_number,
+            'title': tender.title,
+            'description': tender.description,
+            'procuring_entity': tender.procuring_entity.name,
+            'estimated_value': float(tender.estimated_value) if tender.estimated_value else None,
+            'currency': tender.currency,
+            'closing_date': tender.closing_date.isoformat(),
+            'publication_date': tender.publication_date.isoformat(),
+            'opening_date': tender.opening_date.isoformat() if tender.opening_date else None,
+            'bid_validity_period': tender.bid_validity_period,
+            'status': tender.status,
+            'category': tender.category.name if tender.category else None,
+            'procurement_method': tender.procurement_method,
+            'minimum_requirements': tender.minimum_requirements,
+            'technical_specifications': tender.technical_specifications,
+            'evaluation_criteria': tender.evaluation_criteria,
+            'terms_conditions': tender.terms_conditions,
+            'tender_security_required': tender.tender_security_required,
+            'tender_security_amount': float(tender.tender_security_amount) if tender.tender_security_amount else None,
+            'tender_security_type': tender.tender_security_type,
+            'allow_variant_bids': tender.allow_variant_bids,
+            'allow_electronic_submission': tender.allow_electronic_submission,
+        })
+
+    return Response({'results': data, 'count': len(data)})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Public access
+def public_tender_detail(request, tender_id):
+    """
+    Return detailed view of a single published tender for public viewing.
+    """
+    try:
+        uuid.UUID(str(tender_id))
+    except ValueError:
+        return Response({'error': 'Invalid tender ID format'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        tender = (
+            Tender.objects
+            .filter(status='published')  # Only published tenders
+            .select_related('procuring_entity', 'category', 'subcategory', 'created_by')
+            .get(id=tender_id)
+        )
+    except Tender.DoesNotExist:
+        return Response({'error': 'Published tender not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Return detailed public data
+    data = {
+        'id': str(tender.id),
+        'reference_number': tender.reference_number,
+        'title': tender.title,
+        'description': tender.description,
+        'procuring_entity': tender.procuring_entity.name,
+        'estimated_value': float(tender.estimated_value) if tender.estimated_value else None,
+        'currency': tender.currency,
+        'closing_date': tender.closing_date.isoformat(),
+        'publication_date': tender.publication_date.isoformat(),
+        'opening_date': tender.opening_date.isoformat() if tender.opening_date else None,
+        'bid_validity_period': tender.bid_validity_period,
+        'status': tender.status,
+        'category': tender.category.name if tender.category else None,
+        'subcategory': tender.subcategory.name if tender.subcategory else None,
+        'procurement_method': tender.procurement_method,
+        'minimum_requirements': tender.minimum_requirements,
+        'technical_specifications': tender.technical_specifications,
+        'evaluation_criteria': tender.evaluation_criteria,
+        'terms_conditions': tender.terms_conditions,
+        'tender_security_required': tender.tender_security_required,
+        'tender_security_amount': float(tender.tender_security_amount) if tender.tender_security_amount else None,
+        'tender_security_type': tender.tender_security_type,
+        'allow_variant_bids': tender.allow_variant_bids,
+        'allow_electronic_submission': tender.allow_electronic_submission,
+        'is_open': tender.is_open,
+        'days_remaining': tender.days_remaining,
+    }
+
+    return Response(data, status=status.HTTP_200_OK)
 
 # Procurement analytics endpoint
 @api_view(['GET'])

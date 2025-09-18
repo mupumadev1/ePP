@@ -54,7 +54,7 @@ const EditStatus = ({ tender, onDone }) => {
   );
 };
 
-const TendersView = ({ tenders, error = null }) => {
+const TendersView = ({ tenders, error = null, publicView = false, onLoginRequired = null }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -91,14 +91,18 @@ const TendersView = ({ tenders, error = null }) => {
     )
   );
 
-  return (
+ return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Tender Management</h2>
-        <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center">
-          <FileText className="h-4 w-4 mr-2" />
-          Create Tender
-        </button>
+        <h2 className="text-2xl font-bold text-gray-900">
+          {publicView ? 'Published Tenders' : 'Tender Management'}
+        </h2>
+        {!publicView && (
+          <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center">
+            <FileText className="h-4 w-4 mr-2" />
+            Create Tender
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
@@ -166,20 +170,36 @@ const TendersView = ({ tenders, error = null }) => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{tender.total_bids}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">ZMW {tender.estimated_value?.toLocaleString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{tender.closing_date}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex justify-end space-x-2">
-                    <button className="text-blue-600 hover:text-blue-900" onClick={() => handleAction(tender, "view")} ><Eye className="h-4 w-4" /></button>
-                    <Link className="text-green-600 hover:text-green-900" to={`/tenders/${tender.id}?edit=1`}><Edit className="h-4 w-4" /></Link>
-                    {/* Evaluation icon toggles on same click and shows active state */}
-                    <button
-                      aria-pressed={action === "evaluate" && selectedTender?.id === tender.id}
-                      className={`hover:text-purple-900 ${action === "evaluate" && selectedTender?.id === tender.id ? "text-purple-900 ring-2 ring-purple-300 rounded" : "text-purple-600"}`}
-                      onClick={() => handleAction(tender ,"evaluate")}
-                    >
-                      <FileCheck className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+        <div className="flex justify-end space-x-2">
+          <button className="text-blue-600 hover:text-blue-900" onClick={() => handleAction(tender, "view")} >
+            <Eye className="h-4 w-4" />
+          </button>
+          {!publicView && (
+            <>
+              <Link className="text-green-600 hover:text-green-900" to={`/tenders/${tender.id}?edit=1`}>
+                <Edit className="h-4 w-4" />
+              </Link>
+              <button
+                aria-pressed={action === "evaluate" && selectedTender?.id === tender.id}
+                className={`hover:text-purple-900 ${action === "evaluate" && selectedTender?.id === tender.id ? "text-purple-900 ring-2 ring-purple-300 rounded" : "text-purple-600"}`}
+                onClick={() => handleAction(tender, "evaluate")}
+              >
+                <FileCheck className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {publicView && (
+            <button
+              className="text-green-600 hover:text-green-900"
+              onClick={() => onLoginRequired && onLoginRequired(tender)}
+            >
+              Submit Bid
+            </button>
+          )}
+        </div>
+      </td>
+
               </tr>
             ))}
 

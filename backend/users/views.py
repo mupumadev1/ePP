@@ -11,8 +11,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 
-from users.models import ProcuringEntity
-from users.serializer import ProcuringEntitySerializer, UserRoleSerializer
+from users.models import ProcuringEntity, SupplierProfile
+from users.serializer import ProcuringEntitySerializer, UserRoleSerializer, UserSerializer, SupplierProfileSerializer
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -201,4 +203,108 @@ def check_user_access(request):
         "can_access_bidder": user.can_access_bidder_dashboard,
         "dashboard_route": user.get_dashboard_route(),
         "role_info": serializer.data
+    })
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+@permission_classes([AllowAny])
+def register_view(request):
+    """
+    Register a new user. When user_type is 'supplier', automatically create a SupplierProfile
+    with verification_status='pending'. Accepts optional supplier fields.
+    Body (JSON): {
+      email, password, confirmPassword, first_name, last_name, username, phoneNumber, user_type,
+      businessRegNumber?, businessCategory?, experience?
+    }
+    """
+    try:
+        payload = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    # Ensure user_type
+    if not payload.get('user_type'):
+        payload['user_type'] = 'supplier'
+
+    # Map frontend fields to serializer fields
+    user_data = {
+        'email': payload.get('email'),
+        'password': payload.get('password'),
+        'confirmPassword': payload.get('confirmPassword'),
+        'first_name': payload.get('first_name') or payload.get('firstName'),
+        'last_name': payload.get('last_name') or payload.get('lastName'),
+        'username': payload.get('username'),
+        'phoneNumber': payload.get('phoneNumber'),
+        'user_type': payload.get('user_type'),
+    }
+
+    serializer = UserSerializer(data=user_data)
+    if not serializer.is_valid():
+        return JsonResponse({"errors": serializer.errors}, status=400)
+
+    user = serializer.save()
+
+    # If supplier, create SupplierProfile in pending status
+    if getattr(user, 'user_type', None) == 'supplier':
+        SupplierProfile.objects.create(
+            user=user,
+            business_reg_number=payload.get('businessRegNumber') or '',
+            business_category=payload.get('businessCategory') or '',
+            years_of_experience=(payload.get('experience') if isinstance(payload.get('experience'), int) else None),
+            verification_status='pending',
+        )
+
+    return JsonResponse({
+        "message": "Registration successful. Your account is pending verification.",
+        "user_id": user.id,
+        "user_type": user.user_type,
+    }, status=201)
+
+
+@require_http_methods(["GET"])
+@admin_required
+def list_pending_suppliers(request):
+    """List supplier profiles awaiting verification"""
+    qs = SupplierProfile.objects.select_related('user').filter(verification_status='pending').order_by('-created_at')
+    data = SupplierProfileSerializer(qs, many=True).data
+    return JsonResponse({"results": data, "count": len(data)})
+
+
+@require_http_methods(["PATCH", "POST"])
+@admin_required
+@csrf_protect
+def verify_supplier(request, user_id):
+    """Verify or reject a supplier profile by user id. Body: { action: 'verify'|'reject', admin_notes? }"""
+    try:
+        profile = SupplierProfile.objects.select_related('user').get(user_id=user_id)
+    except SupplierProfile.DoesNotExist:
+        return JsonResponse({"error": "Supplier profile not found"}, status=404)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    action = (payload.get('action') or '').lower()
+    notes = payload.get('admin_notes') or ''
+
+    if action not in ('verify', 'reject'):
+        return JsonResponse({"error": "Invalid action. Use 'verify' or 'reject'"}, status=400)
+
+    if action == 'verify':
+        profile.verification_status = 'verified'
+        profile.verified_at = timezone.now()
+    else:
+        profile.verification_status = 'rejected'
+        profile.verified_at = None
+
+    if notes:
+        profile.admin_notes = notes
+
+    profile.save(update_fields=['verification_status', 'verified_at', 'admin_notes', 'updated_at'])
+
+    return JsonResponse({
+        "message": f"Supplier {action}ed successfully",
+        "profile": SupplierProfileSerializer(profile).data
     })

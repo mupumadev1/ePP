@@ -10,8 +10,18 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
     email: '',
     phoneNumber: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    businessRegNumber: '',
+    businessCategory: '',
+    experience: ''
   });
+
+  const [uploads, setUploads] = useState({
+    businessRegCertificate: null,
+    taxComplianceCert: null,
+    companyProfile: null
+  });
+
   const [verificationData, setVerificationData] = useState({
     otp: '',
     email: ''
@@ -25,6 +35,14 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleFileChange = (e) => {
+    const { name, files } = e.target;
+    setUploads(prev => ({
+      ...prev,
+      [name]: files[0] || null
     }));
   };
 
@@ -47,7 +65,21 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
     }
 
     try {
-      const result = await register(formData);
+      // Submit JSON payload expected by backend (files are currently not required by API)
+      const payload = {
+        email: formData.email,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        username: formData.username,
+        phoneNumber: formData.phoneNumber,
+        businessRegNumber: formData.businessRegNumber,
+        businessCategory: formData.businessCategory,
+        experience: formData.experience ? Number(formData.experience) : undefined,
+      };
+
+      const result = await register(payload);
       setVerificationData({ ...verificationData, email: formData.email });
       setSuccess(result.message);
       setStep(2);
@@ -185,6 +217,7 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
       )}
 
       <form onSubmit={handleSubmitRegistration} className="space-y-4">
+        {/* Basic Info */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -261,6 +294,127 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
           />
         </div>
 
+        {/* Business Requirements */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Business Registration Number *
+          </label>
+          <input
+            type="text"
+            name="businessRegNumber"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={formData.businessRegNumber}
+            onChange={handleInputChange}
+            placeholder="BRN-123456"
+          />
+        </div>
+
+       <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Upload Business Registration Certificate *
+          </label>
+          <input
+            type="file"
+            name="businessRegCertificate"
+            accept=".pdf,.jpg,.jpeg,.png"
+            required
+            onChange={handleFileChange}
+            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
+                       file:rounded-md file:border-0
+                       file:text-sm file:font-semibold
+                       file:bg-blue-50 file:text-blue-600
+                       hover:file:bg-blue-100"
+          />
+          {uploads.businessRegCertificate && (
+            <div className="mt-2 p-2 border border-gray-300 rounded-md text-sm text-gray-700">
+              <strong>Selected:</strong> {uploads.businessRegCertificate.name}
+            </div>
+          )}
+        </div>
+
+
+       <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Upload Tax Compliance Certificate *
+          </label>
+          <input
+            type="file"
+            name="taxComplianceCert"
+            accept=".pdf,.jpg,.jpeg,.png"
+            required
+            onChange={handleFileChange}
+            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
+                       file:rounded-md file:border-0
+                       file:text-sm file:font-semibold
+                       file:bg-blue-50 file:text-blue-600
+                       hover:file:bg-blue-100"
+          />
+          {uploads.taxComplianceCert && (
+            <div className="mt-2 p-2 border border-gray-300 rounded-md text-sm text-gray-700">
+              <strong>Selected:</strong> {uploads.taxComplianceCert.name}
+            </div>
+          )}
+        </div>
+    <div>
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Upload Company Profile *
+  </label>
+  <input
+    type="file"
+    name="companyProfile"
+    accept=".pdf,.doc,.docx"
+    required
+    onChange={handleFileChange}
+    className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
+               file:rounded-md file:border-0
+               file:text-sm file:font-semibold
+               file:bg-blue-50 file:text-blue-600
+               hover:file:bg-blue-100"
+  />
+  {uploads.companyProfile && (
+    <div className="mt-2 p-2 border border-gray-300 rounded-md text-sm text-gray-700">
+      <strong>Selected:</strong> {uploads.companyProfile.name}
+    </div>
+  )}
+</div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Business Category *
+          </label>
+          <select
+            name="businessCategory"
+            required
+            value={formData.businessCategory}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select category</option>
+            <option value="construction">Construction</option>
+            <option value="it">IT Services</option>
+            <option value="consulting">Consulting</option>
+            <option value="manufacturing">Manufacturing</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Company Experience *
+          </label>
+          <textarea
+            name="experience"
+            required
+            rows="3"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={formData.experience}
+            onChange={handleInputChange}
+            placeholder="Describe your company’s experience, years of operation, or past projects..."
+          />
+        </div>
+
+        {/* Password */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

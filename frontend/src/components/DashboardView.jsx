@@ -289,6 +289,13 @@ const DashboardView = () => {
                 <span className="text-sm font-medium text-green-700">Contracts</span>
               </Link>
               <Link
+                to="/admin/suppliers/verifications"
+                className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+              >
+                <Users className="h-5 w-5 text-purple-600 mr-2" />
+                <span className="text-sm font-medium text-purple-700">Verify Suppliers</span>
+              </Link>
+              <Link
                 to="/reports"
                 className="flex items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
               >

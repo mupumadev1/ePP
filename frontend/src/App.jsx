@@ -14,6 +14,9 @@ import OpportunitiesDetail from './components/bidder/opportunities/Opportunities
 import BidSubmission from './components/bidder/bids/BidSubmission.jsx';
 import BidStatus from './components/bidder/bids/BidStatus.jsx';
 import Unauthorized from './components/Unauthorized.jsx';
+import PublicTendersView from './components/public/PublicTenderView.jsx';
+import AdminSupplierVerifications from './components/admin/AdminSupplierVerifications.jsx';
+import RegistrationPage from './components/RegistrationPage.jsx';
 
 const TenderDetailWithLayout = ({ onLogout }) => (
   <AppLayout title="tenders" onLogout={onLogout}>
@@ -269,6 +272,9 @@ const App = () => {
 
   return (
     <Routes>
+        <Route path="/" element={<PublicTendersView />} />
+        <Route path="/tenders" element={<PublicTendersView />} />
+        <Route path="/public-tenders" element={<PublicTendersView />} />
       <Route
         path="/login"
         element={
@@ -280,11 +286,19 @@ const App = () => {
         }
       />
 
-      {/* Default route redirects based on auth and role */}
       <Route
-        path="/"
-        element={<Navigate to={homePath} replace />}
+        path="/register"
+        element={
+          isAuthenticated ? (
+            <Navigate to={homePath} replace />
+          ) : (
+            <RegistrationPage />
+          )
+        }
       />
+
+      {/* Default route redirects based on auth and role */}
+
 
       {/* Admin-only routes */}
       <Route
@@ -364,6 +378,22 @@ const App = () => {
       <Route
         path="/tenders/:tenderId"
         element={<TenderDetailWithLayout onLogout={isAuthenticated ? handleLogout : undefined} />}
+      />
+
+      {/* Admin-only supplier verification route */}
+      <Route
+        path="/admin/suppliers/verifications"
+        element={
+          isAuthenticated && userRole.canAccessAdmin ? (
+            <AppLayout title="admin" onLogout={handleLogout}>
+              <AdminSupplierVerifications />
+            </AppLayout>
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Unauthorized isAuthenticated={false} />
+          )
+        }
       />
 
       {/* Admin-only tender management routes */}

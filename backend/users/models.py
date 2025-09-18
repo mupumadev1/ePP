@@ -1,5 +1,9 @@
+import os
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, FileExtensionValidator
 from django.db import models
 from django.utils import timezone
 
@@ -206,3 +210,76 @@ class EntityUser(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.entity.name} ({self.get_role_display()})"
+
+def business_reg_certificate_path(instance, filename):
+    base, ext = os.path.splitext(filename)
+    return f"suppliers/{instance.user_id}/documents/business_reg_certificate/{timezone.now():%Y%m%d%H%M%S}{ext}"
+
+
+def tax_compliance_cert_path(instance, filename):
+    base, ext = os.path.splitext(filename)
+    return f"suppliers/{instance.user_id}/documents/tax_compliance_cert/{timezone.now():%Y%m%d%H%M%S}{ext}"
+
+
+def company_profile_path(instance, filename):
+    base, ext = os.path.splitext(filename)
+    return f"suppliers/{instance.user_id}/documents/company_profile/{timezone.now():%Y%m%d%H%M%S}{ext}"
+
+class SupplierProfile(models.Model):
+    """Supplier-specific profile captured during registration"""
+    VERIFICATION_CHOICES = [
+        ('pending', 'Pending Verification'),
+        ('verified', 'Verified'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='supplier_profile')
+
+    # From RegistrationForm fields
+    business_reg_number = models.CharField(max_length=100)  # maps to businessRegNumber
+    business_category = models.CharField(max_length=150, blank=True)  # maps to businessCategory (free text)
+    years_of_experience = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
+    )  # maps to experience
+
+    # Uploads from RegistrationForm
+    business_reg_certificate = models.FileField(
+        upload_to=business_reg_certificate_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])]
+    )
+    tax_compliance_cert = models.FileField(
+        upload_to=tax_compliance_cert_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])]
+    )
+    company_profile = models.FileField(
+        upload_to=company_profile_path,
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])]
+    )
+
+    # Status/verification fields
+    verification_status = models.CharField(max_length=20, choices=VERIFICATION_CHOICES, default='pending')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    admin_notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Supplier Profile"
+        verbose_name_plural = "Supplier Profiles"
+
+    def clean(self):
+        # Ensure this profile is only attached to supplier accounts
+        if hasattr(self, 'user') and self.user and not self.user.is_supplier:
+            raise ValidationError("SupplierProfile can only be linked to users with user_type='supplier'.")
+
+    def __str__(self):
+        return f"SupplierProfile for {self.user.username}"
