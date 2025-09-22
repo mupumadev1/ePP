@@ -230,6 +230,48 @@ class CategoryListCreateView(APIView):
             category = serializer.save()
             return Response(CategorySerializer(category).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class DashboardView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        active_tenders = Tender.objects.filter(status__in=['draft','published']).count()
+        pending_eval = Tender.objects.filter(status__in=['draft','published']).count()  # adjust to your workflow
+        active_contracts = Contract.objects.filter(status='active').count()
+        UserModel = get_user_model()
+        total_suppliers = UserModel.objects.filter(user_type='supplier').count()
+
+        recent_tenders_qs = (
+            Tender.objects.order_by('-created_at')
+            .values('reference_number', 'title', 'status','id')[:3]
+        )
+
+        # Pending actions: include pending supplier verifications
+        try:
+            from users.models import SupplierProfile as SP
+            pending_suppliers = SP.objects.filter(verification_status='pending').count()
+        except Exception:
+            pending_suppliers = 0
+
+        pending_actions = []
+        if pending_suppliers:
+            pending_actions.append({
+                'action': f"Verify Supplier Registrations ({pending_suppliers})",
+                'tender': 'Supplier onboarding',
+                'urgency': 'medium' if pending_suppliers > 0 else 'low'
+            })
+
+        data = {
+            "stats": [
+                {"label": "Active Tenders", "value": active_tenders},
+                {"label": "Pending Evaluation", "value": pending_eval},
+                {"label": "Active Contracts", "value": active_contracts},
+                {"label": "Total Suppliers", "value": total_suppliers},
+            ],
+            "recent_tenders": list(recent_tenders_qs),
+            "pending_actions": pending_actions,
+        }
+        return Response(data)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -296,48 +338,6 @@ def submit_evaluation_recommendation(request, tender_id):
 
     return Response({'message': 'Evaluation recommendation recorded', 'updated_bids': updated, 'top_recommendation': top})
 
-
-class DashboardView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
-
-    def get(self, request):
-        active_tenders = Tender.objects.filter(status__in=['draft','published']).count()
-        pending_eval = Tender.objects.filter(status__in=['draft','published']).count()  # adjust to your workflow
-        active_contracts = Contract.objects.filter(status='active').count()
-        UserModel = get_user_model()
-        total_suppliers = UserModel.objects.filter(user_type='supplier').count()
-
-        recent_tenders_qs = (
-            Tender.objects.order_by('-created_at')
-            .values('reference_number', 'title', 'status','id')[:3]
-        )
-
-        # Pending actions: include pending supplier verifications
-        try:
-            from users.models import SupplierProfile as SP
-            pending_suppliers = SP.objects.filter(verification_status='pending').count()
-        except Exception:
-            pending_suppliers = 0
-
-        pending_actions = []
-        if pending_suppliers:
-            pending_actions.append({
-                'action': f"Verify Supplier Registrations ({pending_suppliers})",
-                'tender': 'Supplier onboarding',
-                'urgency': 'medium' if pending_suppliers > 0 else 'low'
-            })
-
-        data = {
-            "stats": [
-                {"label": "Active Tenders", "value": active_tenders},
-                {"label": "Pending Evaluation", "value": pending_eval},
-                {"label": "Active Contracts", "value": active_contracts},
-                {"label": "Total Suppliers", "value": total_suppliers},
-            ],
-            "recent_tenders": list(recent_tenders_qs),
-            "pending_actions": pending_actions,
-        }
-        return Response(data)
 
 
 @api_view(['GET', 'POST'])

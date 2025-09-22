@@ -25,6 +25,8 @@ const SideBar = ({ navigationItems = [], activeTab, onSelect, routeFor: routeFor
         return '/reports';
       case 'settings':
         return '/settings';
+      case 'profile':
+        return '/profile';
       default:
         return '/dashboard';
     }

@@ -1,0 +1,12 @@
+Hi {{ first_name }},
+
+Great news! Your supplier account for {{ company }} has been verified.
+{% if supplier_company_name %}
+Registered company: {{ supplier_company_name }}
+{% endif %}
+You can now access your dashboard and start participating in tenders:
+{{ dashboard_url }}
+
+If you have any questions, reply to this email or contact us at {{ support_email }}.
+
+— eProcurement Platform Team

@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import SideBar from './SideBar.jsx';
 import NavBar from './NavBar.jsx';
-import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings } from 'lucide-react';
+import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings, User } from 'lucide-react';
 
-const AppLayout = ({ title = 'dashboard', onLogout, children }) => {
+const AppLayout = ({ title = 'dashboard', onLogout, children, forceBidder = false }) => {
   const [activeTab, setActiveTab] = useState(title || 'dashboard');
   const location = useLocation();
 
-  const isBidder = location?.pathname?.startsWith('/bidder');
+  const isBidder = forceBidder || (location?.pathname?.startsWith('/bidder'));
 
   useEffect(() => {
     if (isBidder) {
@@ -31,6 +31,7 @@ const AppLayout = ({ title = 'dashboard', onLogout, children }) => {
         { id: 'bidder-dashboard', label: 'Dashboard', icon: BarChart3 },
         { id: 'opportunities', label: 'Opportunities', icon: FileText },
         { id: 'my-bids', label: 'My Bids', icon: Clipboard },
+        { id: 'profile', label: 'Profile', icon: User },
       ]
     : [
         { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -39,6 +40,7 @@ const AppLayout = ({ title = 'dashboard', onLogout, children }) => {
         { id: 'contracts', label: 'Contracts', icon: FileCheck },
         { id: 'reports', label: 'Reports', icon: TrendingUp },
         { id: 'settings', label: 'Settings', icon: Settings },
+        { id: 'profile', label: 'Profile', icon: User },
       ];
 
   const notifications = [
@@ -58,6 +60,8 @@ const AppLayout = ({ title = 'dashboard', onLogout, children }) => {
         return '/bidder/opportunities';
       case 'my-bids':
         return '/bidder/bids';
+      case 'profile':
+        return '/profile';
       default:
         return '/bidder/dashboard';
     }

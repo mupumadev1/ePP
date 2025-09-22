@@ -177,6 +177,53 @@ def recompute_evaluation_totals(request, evaluation_id):
         'overall_score': evaluation.overall_score,
     })
 
+# Create or fetch evaluation for current user on a bid
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_or_create_evaluation(request):
+    bid_id = request.data.get('bid_id') or request.data.get('bid')
+    if not bid_id:
+        return Response({'error': 'bid_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        bid = Bid.objects.select_related('tender').get(id=bid_id)
+    except Bid.DoesNotExist:
+        return Response({'error': 'Bid not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user
+    # Permissions: superuser, tender creator, or member of procuring entity that owns the tender
+    if not (
+        user.is_superuser
+        or user == bid.tender.created_by
+        or EntityUser.objects.filter(user=user, entity=bid.tender.procuring_entity, status='active').exists()
+    ):
+        return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+    evaluation, created = BidEvaluation.objects.get_or_create(bid=bid, evaluator=user)
+    # Serialize minimal evaluation info for frontend
+    scores = {}
+    for s in evaluation.criterion_scores.select_related('criterion').all():
+        try:
+            val = float(s.score) if s.score is not None else None
+        except Exception:
+            val = None
+        scores[str(s.criterion_id)] = {
+            'score': val,
+            'comments': s.comments or ''
+        }
+
+    data = {
+        'id': str(evaluation.id),
+        'created': created,
+        'bid_id': str(bid.id),
+        'evaluator_id': str(user.id),
+        'technical_compliance': evaluation.technical_compliance,
+        'technical_score': float(evaluation.technical_score or 0),
+        'financial_score': float(evaluation.financial_score or 0),
+        'overall_score': float(evaluation.overall_score or 0),
+        'criterion_scores': scores,
+    }
+    return Response(data)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def tender_required_uploads(request, tender_id):

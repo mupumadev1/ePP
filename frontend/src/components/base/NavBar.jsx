@@ -26,7 +26,9 @@ const NavBar = ({ title = '', notifications = [], onLogout }) => {
 
           {/* User Avatar */}
           <div className="h-10 w-10 bg-purple-500 rounded-full flex items-center justify-center">
+              <a href={'profile'} title="Profile" className="flex items-center justify-center h-full w-full">
             <User className="h-5 w-5 text-white" />
+              </a>
           </div>
 
           {/* Logout Button */}

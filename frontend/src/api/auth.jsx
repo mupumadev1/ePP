@@ -84,21 +84,29 @@ export const login = async ({ username, password }) => {
     throw new Error(error.response?.data?.error || error.response?.data?.message || 'Login failed');
   }
 };
-export const register = async ({ email, password, confirmPassword, firstName, lastName, username, phoneNumber }) => {
+export const register = async (data) => {
   try {
     // Ensure CSRF is set before posting
     await getCsrf();
 
-    const res = await axiosInstance.post('/users/register/', {
-      email: String(email || '').trim().toLowerCase(),
-      password,
-      confirmPassword,
-      first_name: String(firstName || '').trim(),
-      last_name: String(lastName || '').trim(),
-      username: String(username || '').trim(),
-      phoneNumber: String(phoneNumber || '').trim(),
-      user_type: 'supplier'
-    });
+    let res;
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      // Let the browser set the correct multipart boundary
+      res = await axiosInstance.post('/users/register/', data);
+    } else {
+      const { email, password, confirmPassword, firstName, lastName, username, phoneNumber, company_name, companyName } = data || {};
+      res = await axiosInstance.post('/users/register/', {
+        email: String(email || '').trim().toLowerCase(),
+        password,
+        confirmPassword,
+        first_name: String(firstName || '').trim(),
+        last_name: String(lastName || '').trim(),
+        username: String(username || '').trim(),
+        phoneNumber: String(phoneNumber || '').trim(),
+        company_name: String(company_name || companyName || '').trim(),
+        user_type: 'supplier'
+      });
+    }
 
     if (res?.status >= 200 && res?.status < 300) {
       return res?.data;

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #333;">
+    <h2>Congratulations, {{ first_name }}!</h2>
+    <p>Your supplier account for <strong>{{ company }}</strong> has been successfully verified.</p>
+    {% if supplier_company_name %}
+    <p>Registered company: <strong>{{ supplier_company_name }}</strong></p>
+    {% endif %}
+    <p>You can now log in and access your dashboard to view opportunities and submit bids.</p>
+    <p>
+      <a href="{{ dashboard_url }}" style="background:#155bd5;color:#fff;padding:10px 16px;border-radius:4px;text-decoration:none;">Go to Dashboard</a>
+    </p>
+    <p>If you have any questions, reply to this email or contact us at {{ support_email }}.</p>
+    <p>— eProcurement Platform Team</p>
+  </body>
+</html>

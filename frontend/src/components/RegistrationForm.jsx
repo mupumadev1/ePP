@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { register, verifyEmail, resendOtp } from '../api/auth.jsx';
+import { register } from '../api/auth.jsx';
 
-const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
+const RegistrationForm = ({ onBackToLogin }) => {
   const [step, setStep] = useState(1); // 1: registration form, 2: email verification
   const [formData, setFormData] = useState({
     firstName: '',
@@ -13,7 +13,8 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
     confirmPassword: '',
     businessRegNumber: '',
     businessCategory: '',
-    experience: ''
+    experience: '',
+    company_name: '',
   });
 
   const [uploads, setUploads] = useState({
@@ -64,22 +65,42 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
       return;
     }
 
-    try {
-      // Submit JSON payload expected by backend (files are currently not required by API)
-      const payload = {
-        email: formData.email,
-        password: formData.password,
-        confirmPassword: formData.confirmPassword,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        username: formData.username,
-        phoneNumber: formData.phoneNumber,
-        businessRegNumber: formData.businessRegNumber,
-        businessCategory: formData.businessCategory,
-        experience: formData.experience ? Number(formData.experience) : undefined,
-      };
+    if (!formData.businessRegNumber?.trim()) {
+      setError('Business Registration Number is required');
+      setLoading(false);
+      return;
+    }
 
-      const result = await register(payload);
+    try {
+      // Build multipart form data so files are uploaded with the profile
+      const fd = new FormData();
+      fd.append('email', formData.email);
+      fd.append('password', formData.password);
+      fd.append('confirmPassword', formData.confirmPassword);
+      fd.append('firstName', formData.firstName);
+      fd.append('lastName', formData.lastName);
+      fd.append('username', formData.username);
+      fd.append('phoneNumber', formData.phoneNumber);
+      fd.append('company_name', formData.company_name);
+      fd.append('user_type', 'supplier');
+      fd.append('businessRegNumber', formData.businessRegNumber);
+      fd.append('businessCategory', formData.businessCategory);
+      if (formData.experience !== '' && formData.experience !== null && formData.experience !== undefined) {
+        fd.append('experience', String(Number(formData.experience)));
+      }
+
+      // Append files only if provided (inputs are required in UI; this is defensive)
+      if (uploads.businessRegCertificate) {
+        fd.append('businessRegCertificate', uploads.businessRegCertificate);
+      }
+      if (uploads.taxComplianceCert) {
+        fd.append('taxComplianceCert', uploads.taxComplianceCert);
+      }
+      if (uploads.companyProfile) {
+        fd.append('companyProfile', uploads.companyProfile);
+      }
+
+      const result = await register(fd);
       setVerificationData({ ...verificationData, email: formData.email });
       setSuccess(result.message);
       setStep(2);
@@ -90,47 +111,16 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
     }
   };
 
-  const handleSubmitVerification = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      await verifyEmail(verificationData);
-      setSuccess('Email verified successfully! You can now log in.');
-      if (onRegistrationSuccess) {
-        onRegistrationSuccess();
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      await resendOtp({ email: verificationData.email });
-      setSuccess('Verification code sent to your email');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (step === 2) {
     return (
       <div className="space-y-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Verify Your Email
+            Your account has been created and submitted for verification
           </h2>
           <p className="text-gray-600">
-            We've sent a 6-digit code to {verificationData.email}
+            Please check your email for our feedback. This may take some time.
           </p>
         </div>
 
@@ -146,54 +136,14 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmitVerification} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Verification Code
-            </label>
-            <input
-              type="text"
-              maxLength="6"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg tracking-widest"
-              value={verificationData.otp}
-              onChange={(e) =>
-                setVerificationData({
-                  ...verificationData,
-                  otp: e.target.value.replace(/\D/g, '').slice(0, 6)
-                })
-              }
-              placeholder="000000"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || verificationData.otp.length !== 6}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            {loading ? 'Verifying...' : 'Verify Email'}
-          </button>
-        </form>
-
-        <div className="text-center space-y-2">
+        <div className="text-center">
           <button
             type="button"
-            onClick={handleResendOtp}
-            disabled={loading}
-            className="text-blue-600 hover:underline text-sm"
+            onClick={onBackToLogin}
+            className="text-gray-600 hover:underline text-sm"
           >
-            Resend verification code
+            Back to login
           </button>
-          <div>
-            <button
-              type="button"
-              onClick={onBackToLogin}
-              className="text-gray-600 hover:underline text-sm"
-            >
-              Back to login
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -249,6 +199,20 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Company Name *
+          </label>
+          <input
+            type="text"
+            name="company_name"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={formData.company_name}
+            onChange={handleInputChange}
+            placeholder="Enter company name"
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Username *
@@ -357,27 +321,27 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
           )}
         </div>
     <div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">
-    Upload Company Profile *
-  </label>
-  <input
-    type="file"
-    name="companyProfile"
-    accept=".pdf,.doc,.docx"
-    required
-    onChange={handleFileChange}
-    className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
-               file:rounded-md file:border-0
-               file:text-sm file:font-semibold
-               file:bg-blue-50 file:text-blue-600
-               hover:file:bg-blue-100"
-  />
-  {uploads.companyProfile && (
-    <div className="mt-2 p-2 border border-gray-300 rounded-md text-sm text-gray-700">
-      <strong>Selected:</strong> {uploads.companyProfile.name}
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Upload Company Profile *
+      </label>
+      <input
+        type="file"
+        name="companyProfile"
+        accept=".pdf,.jpg,.jpeg,.png"
+        required
+        onChange={handleFileChange}
+        className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
+                   file:rounded-md file:border-0
+                   file:text-sm file:font-semibold
+                   file:bg-blue-50 file:text-blue-600
+                   hover:file:bg-blue-100"
+      />
+      {uploads.companyProfile && (
+        <div className="mt-2 p-2 border border-gray-300 rounded-md text-sm text-gray-700">
+          <strong>Selected:</strong> {uploads.companyProfile.name}
+        </div>
+      )}
     </div>
-  )}
-</div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -401,16 +365,15 @@ const RegistrationForm = ({ onBackToLogin, onRegistrationSuccess }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Company Experience *
+           Years of Industry Experience *
           </label>
-          <textarea
+          <input type={"number"}
             name="experience"
             required
-            rows="3"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={formData.experience}
             onChange={handleInputChange}
-            placeholder="Describe your company’s experience, years of operation, or past projects..."
+            placeholder="5"
           />
         </div>
 

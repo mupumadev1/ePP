@@ -17,6 +17,7 @@ from .views import (
     BidDocumentsListForEvaluation,
     BidDocumentServeView, tender_evaluation_config_view, criteria_list_create, criterion_detail_view,
     upsert_evaluation_scores, recompute_evaluation_totals, tender_required_uploads,
+    get_or_create_evaluation,
 )
 
 urlpatterns = [
@@ -36,7 +37,8 @@ urlpatterns = [
     path('tenders/<uuid:tender_id>/required-uploads/', TenderRequiredUploadsView.as_view(), name='tender_required_uploads'),
     path('bid/<uuid:bid_id>/documents/list/', BidDocumentsListForEvaluation.as_view(), name='bid_documents_list_eval'),
     path('documents/<uuid:doc_id>/view/', BidDocumentServeView.as_view(), name='bid_document_serve'),
- path('tenders/<uuid:tender_id>/evaluation/config', tender_evaluation_config_view, name='tender-eval-config'),
+    path('evaluations/', get_or_create_evaluation, name='get-or-create-evaluation'),
+    path('tenders/<uuid:tender_id>/evaluation/config', tender_evaluation_config_view, name='tender-eval-config'),
     path('tenders/<uuid:tender_id>/evaluation/criteria', criteria_list_create, name='criteria-list-create'),
     path('tenders/<uuid:tender_id>/evaluation/criteria/<int:criterion_id>', criterion_detail_view, name='criterion-detail'),
 

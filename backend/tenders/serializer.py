@@ -227,7 +227,11 @@ class TenderListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tender
-        fields = ['id', 'reference_number', 'title', 'status', 'closing_date', 'estimated_value', 'procuring_entity', 'total_bids']
+        # Include evaluation_criteria so evaluation UI can access configured criteria from tender list
+        fields = [
+            'id', 'reference_number', 'title', 'status', 'closing_date', 'estimated_value',
+            'procuring_entity', 'total_bids', 'evaluation_criteria'
+        ]
 
     def get_total_bids(self, obj):
         try:

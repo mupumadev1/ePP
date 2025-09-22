@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; color: #333;">
+    <h2>Hello {{ first_name }},</h2>
+    <p>Thank you for registering your supplier account for <strong>{{ company }}</strong>.</p>
+    {% if supplier_company_name %}
+    <p>Registered company: <strong>{{ supplier_company_name }}</strong></p>
+    {% endif %}
+    <p>After reviewing your submission, we were unable to approve your verification at this time.</p>
+    {% if notes %}
+      <p><strong>Notes from our team:</strong></p>
+      <blockquote style="border-left:4px solid #ddd; padding-left:10px; color:#555;">{{ notes }}</blockquote>
+    {% endif %}
+    <p>You may update your documents or details and resubmit for verification from your dashboard.</p>
+    <p>
+      <a href="{{ dashboard_url }}" style="background:#155bd5;color:#fff;padding:10px 16px;border-radius:4px;text-decoration:none;">Open Dashboard</a>
+    </p>
+    <p>If you need assistance, reply to this email or contact us at {{ support_email }}.</p>
+    <p>— eProcurement Platform Team</p>
+  </body>
+</html>

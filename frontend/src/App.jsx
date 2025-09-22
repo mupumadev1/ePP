@@ -17,6 +17,8 @@ import Unauthorized from './components/Unauthorized.jsx';
 import PublicTendersView from './components/public/PublicTenderView.jsx';
 import AdminSupplierVerifications from './components/admin/AdminSupplierVerifications.jsx';
 import RegistrationPage from './components/RegistrationPage.jsx';
+import ProfilePage from './components/ProfilePage.jsx';
+import AdminProfileEditRequests from './components/admin/AdminProfileEditRequests.jsx';
 
 const TenderDetailWithLayout = ({ onLogout }) => (
   <AppLayout title="tenders" onLogout={onLogout}>
@@ -273,7 +275,16 @@ const App = () => {
   return (
     <Routes>
         <Route path="/" element={<PublicTendersView />} />
-        <Route path="/tenders" element={<PublicTendersView />} />
+        <Route
+          path="/tenders"
+          element={
+            isAuthenticated && userRole.canAccessAdmin ? (
+              <TenderAdminDashboard onLogout={handleLogout} initialTab="tenders" />
+            ) : (
+              <PublicTendersView />
+            )
+          }
+        />
         <Route path="/public-tenders" element={<PublicTendersView />} />
       <Route
         path="/login"
@@ -479,6 +490,34 @@ const App = () => {
             <BidStatus onLogout={handleLogout} />
           ) : isAuthenticated ? (
             <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+
+      {/* Admin: profile edit review */}
+      <Route
+        path="/admin/profile-edits"
+        element={
+          isAuthenticated && userRole.canAccessAdmin ? (
+            <AppLayout title="admin" onLogout={handleLogout}>
+              <AdminProfileEditRequests />
+            </AppLayout>
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Unauthorized isAuthenticated={false} />
+          )
+        }
+      />
+
+      {/* User: profile view/edit */}
+      <Route
+        path="/profile"
+        element={
+          isAuthenticated ? (
+            <ProfilePage onLogout={handleLogout} />
           ) : (
             <Navigate to="/login" replace />
           )

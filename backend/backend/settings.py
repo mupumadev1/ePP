@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-(ah5!5p=a425tq88rf--1@i@y$yn%r&s8c1hrbro*a&q=f)d0p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.100.201']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.100.144']
 
 
 # Application definition
@@ -98,7 +98,7 @@ DATABASES = {
     }
 }
 LOGIN_URL = '/users/login/'
-FRONTEND_URL = 'http://192.168.100.201:5173'
+FRONTEND_URL = 'http://192.168.100.144:5173'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -111,7 +111,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'mupumamgtsdev@gmail.com'
 EMAIL_HOST_PASSWORD = 'nnbhieknirlbtvcx'  # Use an app password if 2FA is enabled
 DEFAULT_FROM_EMAIL = 'mupumamgtsdev@gmail.com'
-SITE_URL = 'http://192.168.100.201:5173'
+SITE_URL = 'http://192.168.100.144:5173'
 
 
 REST_FRAMEWORK = {
@@ -147,7 +147,7 @@ AUTH_PASSWORD_VALIDATORS = [
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'http://192.168.100.201:5173'
+    'http://192.168.100.144:5173'
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -156,7 +156,7 @@ CSRF_COOKIE_DOMAIN = None  # Allow CSRF cookie for all hosts
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'http://192.168.100.201:5173'
+    'http://192.168.100.144:5173'
 ]
 
 CSRF_COOKIE_HTTPONLY = False

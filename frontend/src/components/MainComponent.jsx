@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings } from 'lucide-react';
+import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings, User } from 'lucide-react';
 import DashboardView from './DashboardView.jsx';
 import TendersView from './TendersView.jsx';
 import EvaluationView from './EvaluationView.jsx';
@@ -56,7 +56,8 @@ const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
     { id: 'evaluation', label: 'Evaluation', icon: Clipboard },
     { id: 'contracts', label: 'Contracts', icon: FileCheck },
     { id: 'reports', label: 'Reports', icon: TrendingUp },
-    { id: 'settings', label: 'Settings', icon: Settings }
+    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'profile', label: 'Profile', icon: User }
   ];
 
   // Handle tender selection for evaluation

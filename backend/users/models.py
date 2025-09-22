@@ -6,6 +6,12 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, FileExtensionValidator
 from django.db import models
 from django.utils import timezone
+try:
+    # Django 3.1+
+    JSONField = models.JSONField
+except Exception:
+    # Fallback if needed (older Django), but most environments will support models.JSONField
+    from django.contrib.postgres.fields import JSONField  # type: ignore
 
 
 class UserManager(BaseUserManager):
@@ -225,6 +231,35 @@ def company_profile_path(instance, filename):
     base, ext = os.path.splitext(filename)
     return f"suppliers/{instance.user_id}/documents/company_profile/{timezone.now():%Y%m%d%H%M%S}{ext}"
 
+class ProfileEditRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    TARGET_CHOICES = [
+        ('user', 'User'),
+        ('supplier_profile', 'SupplierProfile'),
+        ('entity_user', 'EntityUser'),
+    ]
+
+    user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='profile_edit_requests')
+    target = models.CharField(max_length=30, choices=TARGET_CHOICES)
+    target_id = models.PositiveIntegerField(null=True, blank=True)
+    proposed_changes = JSONField(default=dict)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    admin_notes = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey('User', null=True, blank=True, on_delete=models.SET_NULL, related_name='reviewed_profile_edits')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"EditRequest #{self.id} by {self.user.username} -> {self.target} ({self.status})"
+
+
 class SupplierProfile(models.Model):
     """Supplier-specific profile captured during registration"""
     VERIFICATION_CHOICES = [
@@ -234,7 +269,7 @@ class SupplierProfile(models.Model):
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='supplier_profile')
-
+    company_name = models.CharField(max_length=255, blank=True)
     # From RegistrationForm fields
     business_reg_number = models.CharField(max_length=100)  # maps to businessRegNumber
     business_category = models.CharField(max_length=150, blank=True)  # maps to businessCategory (free text)

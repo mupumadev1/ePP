@@ -1,0 +1,19 @@
+Hello {{ first_name }},
+
+Thank you for registering your supplier account for {{ company }}.
+{% if supplier_company_name %}
+Registered company: {{ supplier_company_name }}
+{% endif %}
+After reviewing your submission, we were unable to approve your verification at this time.
+{% if notes %}
+Notes from our team:
+"""
+{{ notes }}
+"""
+{% endif %}
+You may update your documents or details and resubmit for verification from your dashboard:
+{{ dashboard_url }}
+
+If you need assistance, reply to this email or contact us at {{ support_email }}.
+
+— eProcurement Platform Team
