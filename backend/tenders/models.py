@@ -219,6 +219,13 @@ class Tender(models.Model):
                 return False
         return True
 
+    @property
+    def total_budget_allocation(self):
+        """Get total allocated amount from all budget lines"""
+        return self.budget_allocations.aggregate(
+            total=models.Sum('allocated_amount')
+        )['total'] or 0
+
 
 def tender_document_path(instance, filename):
     return f'tenders/{instance.tender.id}/documents/{filename}'
@@ -233,6 +240,7 @@ class TenderUploadDocuments(models.Model):
 
     def __str__(self):
         return f"{self.tender.reference_number} - {self.name}"
+
 
 class TenderDocument(models.Model):
     """Documents attached to tenders"""

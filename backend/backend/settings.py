@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'bids',
     'notifications',
     'tenders',
+    'budgets',
 ]
 
 MIDDLEWARE = [
