@@ -42,7 +42,10 @@ const BidSubmission = ({ onLogout }) => {
       const saved = await createOrSaveBid(tenderId, data);
       const bidId = saved?.id || saved?.bid?.id;
       if (data.documents?.length && bidId) {
-        await uploadBidDocuments(bidId, data.documents.map(d => d.file).filter(Boolean));
+        const items = data.documents.filter(d => d.file).map(d => ({ file: d.file, type: d.type }));
+        if (items.length) {
+          await uploadBidDocuments(bidId, items);
+        }
       }
       if (bidId) {
         await submitBid(bidId);

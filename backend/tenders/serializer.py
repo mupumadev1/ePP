@@ -3,7 +3,7 @@ from django.utils.timezone import make_aware, now
 from django.db import transaction
 from rest_framework import serializers
 
-from .models import Tender, Category
+from .models import Tender, Category, TenderUploadDocuments
 from users.models import EntityUser, ProcuringEntity
 
 
@@ -198,24 +198,33 @@ class TenderUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+class TenderUploadDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TenderUploadDocuments
+        fields = ['id', 'name', 'file_type', 'max_file_size', 'mandatory']
+
+
 class TenderDetailSerializer(serializers.ModelSerializer):
     allowed_transitions = serializers.SerializerMethodField(read_only=True)
     procuring_entity = serializers.CharField(source='procuring_entity.name', read_only=True)
     procuring_entity_id = serializers.PrimaryKeyRelatedField(source='procuring_entity', read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(source='category', read_only=True)
     subcategory_id = serializers.PrimaryKeyRelatedField(source='subcategory', read_only=True, allow_null=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True, allow_null=True)
+    upload_documents = TenderUploadDocumentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Tender
         fields = [
             'id', 'reference_number', 'title', 'description',
-            'category_id', 'subcategory_id', 'procuring_entity', 'procuring_entity_id',
+            'category_id', 'subcategory_id', 'category_name', 'subcategory_name', 'procuring_entity', 'procuring_entity_id',
             'procurement_method', 'estimated_value', 'currency',
             'closing_date', 'opening_date', 'bid_validity_period',
             'minimum_requirements', 'technical_specifications', 'evaluation_criteria', 'terms_conditions',
             'tender_security_required', 'tender_security_amount', 'tender_security_type',
             'allow_variant_bids', 'allow_electronic_submission', 'auto_extend_on_amendment',
-            'status', 'tender_stage', 'allowed_transitions'
+            'status', 'tender_stage', 'allowed_transitions', 'upload_documents'
         ]
 
     def get_allowed_transitions(self, obj):
@@ -224,13 +233,15 @@ class TenderDetailSerializer(serializers.ModelSerializer):
 class TenderListSerializer(serializers.ModelSerializer):
     procuring_entity = serializers.CharField(source='procuring_entity.name', read_only=True)
     total_bids = serializers.SerializerMethodField(read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Tender
         # Include evaluation_criteria so evaluation UI can access configured criteria from tender list
         fields = [
             'id', 'reference_number', 'title', 'status', 'closing_date', 'estimated_value',
-            'procuring_entity', 'total_bids', 'evaluation_criteria'
+            'procuring_entity', 'total_bids', 'evaluation_criteria', 'category_name', 'subcategory_name'
         ]
 
     def get_total_bids(self, obj):

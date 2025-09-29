@@ -49,18 +49,27 @@ const BidSubmissionForm = ({ tender, onSubmit, onSave, initialBid = null }) => {
 
   useEffect(() => {
     if (initialBid) {
-      setBidData({ ...bidData, ...initialBid });
+      setBidData(prev => ({ ...prev, ...initialBid }));
       if (initialBid.documents) {
         setDocuments(initialBid.documents);
       }
     }
+  }, [initialBid]);
+
+  // Keep bid security amount in sync with tender requirement
+  useEffect(() => {
     if (tender?.tenderSecurityRequired) {
       setBidData(prev => ({
         ...prev,
         bidSecurityAmount: tender.tenderSecurityAmount || ''
       }));
     }
-  }, [initialBid, tender]);
+  }, [tender]);
+
+  // Recalculate totals when VAT inclusion toggles or items change
+  useEffect(() => {
+    calculateTotalBidAmount(bidData.items || []);
+  }, [bidData.vatInclusive, bidData.items]);
 
   const calculateItemTotal = (quantity, unitPrice) => {
     return (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
@@ -117,14 +126,41 @@ const BidSubmissionForm = ({ tender, onSubmit, onSave, initialBid = null }) => {
 
   const handleDocumentUpload = (event) => {
     const files = Array.from(event.target.files);
+    const defaultType = (tender?.upload_documents && tender.upload_documents[0]?.file_type) || 'other';
     const newDocs = files.map(file => ({
       id: Date.now() + Math.random(),
       name: file.name,
-      type: 'technical_proposal', // Default type
+      type: defaultType,
       file: file,
       size: file.size
     }));
     setDocuments([...documents, ...newDocs]);
+  };
+
+  // Per-requirement upload handler
+  const handleRequirementUpload = (req, file) => {
+    if (!file) return;
+    const doc = {
+      id: Date.now() + Math.random(),
+      name: file.name,
+      type: req.file_type || req.document_type || 'other',
+      file,
+      size: file.size,
+      requirementId: req.id,
+    };
+    setDocuments(prev => {
+      // replace existing doc for this requirement (if any)
+      const withoutReq = prev.filter(d => d.requirementId !== req.id);
+      return [...withoutReq, doc];
+    });
+  };
+
+  const removeRequirementDocument = (reqId) => {
+    setDocuments(prev => prev.filter(d => d.requirementId !== reqId));
+  };
+
+  const getDocumentForRequirement = (req) => {
+    return documents.find(d => d.requirementId === req.id);
   };
 
   const removeDocument = (docId) => {
@@ -148,6 +184,27 @@ const BidSubmissionForm = ({ tender, onSubmit, onSave, initialBid = null }) => {
 
     if (tender?.tenderSecurityRequired && !bidData.bidSecurityAmount) {
       newErrors.bidSecurityAmount = 'Bid security is required for this tender';
+    }
+
+    // Validate mandatory uploads
+    const reqs = Array.isArray(tender?.upload_documents) ? tender.upload_documents : [];
+    // A mandatory requirement is satisfied if there's a document linked to that requirement OR any uploaded document with matching type
+    const missingMandatory = reqs.filter(r => r.mandatory && !documents.find(d => (d.requirementId === r.id) || (d.type === r.file_type)));
+    if (missingMandatory.length) {
+      newErrors.documents = `Please upload all mandatory documents: ${missingMandatory.map(r => r.name).join(', ')}`;
+    }
+
+    // Validate file sizes per requirement where applicable (by requirement or by matching type)
+    const oversize = reqs
+      .map(r => {
+        const d = documents.find(doc => (doc.requirementId === r.id) || (doc.type === r.file_type));
+        if (d && r.max_file_size && d.size > r.max_file_size) return r.name;
+        return null;
+      })
+      .filter(Boolean);
+    if (oversize.length) {
+      newErrors.documents = (newErrors.documents ? newErrors.documents + ' ' : '') +
+        `Some files exceed their maximum size: ${oversize.join(', ')}`;
     }
 
     setErrors(newErrors);
@@ -467,6 +524,26 @@ const BidSubmissionForm = ({ tender, onSubmit, onSave, initialBid = null }) => {
         <section>
           <h3 className="text-lg font-medium text-gray-900 mb-4">Supporting Documents</h3>
 
+          {Array.isArray(tender?.upload_documents) && tender.upload_documents.length > 0 && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded">
+              <p className="font-medium text-blue-900 mb-2">Tender Document Requirements</p>
+              <ul className="space-y-1 text-sm text-blue-900 list-disc pl-5">
+                {tender.upload_documents.map(req => (
+                  <li key={req.id}>
+                    <span className="font-semibold">{req.name}</span>
+                    <span className="ml-2 inline-block text-xs px-2 py-0.5 rounded-full border border-blue-300">{req.file_type}</span>
+                    {req.mandatory && (
+                      <span className="ml-2 inline-block text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Mandatory</span>
+                    )}
+                    {req.max_file_size && (
+                      <span className="ml-2 text-xs text-blue-700">Max {(req.max_file_size / 1024 / 1024).toFixed(1)} MB</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 mb-4">
             <div className="text-center">
               <Upload className="mx-auto h-12 w-12 text-gray-400" />
@@ -490,23 +567,46 @@ const BidSubmissionForm = ({ tender, onSubmit, onSave, initialBid = null }) => {
           {documents.length > 0 && (
             <div className="space-y-2">
               <h4 className="font-medium text-gray-900">Uploaded Documents</h4>
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center">
-                    <FileText className="h-5 w-5 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-900">{doc.name}</span>
-                    <span className="text-xs text-gray-500 ml-2">
-                      ({(doc.size / 1024 / 1024).toFixed(2)} MB)
-                    </span>
+              {documents.map((doc) => {
+                const matched = (tender?.upload_documents || []).find(r => r.file_type === doc.type);
+                const tooLarge = matched && matched.max_file_size && doc.size > matched.max_file_size;
+                return (
+                  <div key={doc.id} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <FileText className="h-5 w-5 text-gray-400 mr-2" />
+                        <span className="text-sm text-gray-900">{doc.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">({(doc.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      </div>
+                      <button
+                        onClick={() => removeDocument(doc.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      <label className="text-xs text-gray-600">Document type:</label>
+                      <select
+                        className="border rounded px-2 py-1 text-sm"
+                        value={doc.type || ''}
+                        onChange={(e) => setDocuments(docs => docs.map(d => d.id === doc.id ? { ...d, type: e.target.value } : d))}
+                      >
+                        {(tender?.upload_documents || []).map(req => (
+                          <option key={req.id} value={req.file_type}>{req.file_type}</option>
+                        ))}
+                        <option value="other">other</option>
+                      </select>
+                      {matched?.mandatory && (
+                        <span className="text-xs text-red-700 bg-red-100 px-2 py-0.5 rounded">Mandatory</span>
+                      )}
+                      {tooLarge && (
+                        <span className="text-xs text-red-600">Exceeds max {(matched.max_file_size / 1024 / 1024).toFixed(1)} MB</span>
+                      )}
+                    </div>
                   </div>
-                  <button
-                    onClick={() => removeDocument(doc.id)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -601,7 +701,7 @@ const BidSubmissionForm = ({ tender, onSubmit, onSave, initialBid = null }) => {
             </div>
             <div>
               <p className="text-sm text-gray-600">Total Amount</p>
-              <p className="font-semibold">{bidData.currency} {bidData.totalBidAmount.toLocaleString()}</p>
+              <p className="font-semibold">{bidData.currency} {Number(bidData.totalBidAmount || 0).toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Validity Period</p>

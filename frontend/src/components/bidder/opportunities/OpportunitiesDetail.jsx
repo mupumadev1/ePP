@@ -40,7 +40,7 @@ const OpportunitiesDetail = ({ onLogout }) => {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">{tender.title}</h1>
-                <div className="text-sm text-gray-500">Ref: {tender.referenceNumber}</div>
+                <div className="text-sm text-gray-500">Ref: {tender.reference_number || tender.referenceNumber}</div>
               </div>
               <button
                 onClick={() => navigate(`/bidder/opportunities/${id}/bid`)}
@@ -57,8 +57,9 @@ const OpportunitiesDetail = ({ onLogout }) => {
               <div>
                 <h2 className="font-medium mb-2">Details</h2>
                 <ul className="text-sm text-gray-700 space-y-1">
-                  <li>Category: {tender.category || 'N/A'}</li>
-                  <li>Closing Date: {tender.closingDate ? new Date(tender.closingDate).toLocaleString() : 'N/A'}</li>
+                  <li>Category: {tender.category_name || tender.categoryName || tender.category || 'N/A'}</li>
+                  <li>Subcategory: {tender.subcategory_name || tender.subcategoryName || tender.subcategory || 'N/A'}</li>
+                  <li>Closing Date: {tender.closing_date ? new Date(tender.closing_date).toLocaleString() : tender.closingDate ? new Date(tender.closingDate).toLocaleString() : 'N/A'}</li>
                   <li>Currency: {tender.currency || 'ZMW'}</li>
                 </ul>
               </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings, User } from 'lucide-react';
+import { BarChart3, FileText, Clipboard, FileCheck, TrendingUp, Settings, User, Wallet } from 'lucide-react';
 import DashboardView from './DashboardView.jsx';
 import TendersView from './TendersView.jsx';
 import EvaluationView from './EvaluationView.jsx';
@@ -7,6 +7,7 @@ import EnhancedTenderEvaluation from './Evaluation.jsx'; // Import the evaluatio
 import ContractsView from './ContractsView.jsx';
 import ReportsView from './ReportsView.jsx';
 import SettingsView from './SettingsView.jsx';
+import BudgetView from './BudgetView.jsx';
 import { fetchTenders as apiFetchTenders } from '../api/tender.js';
 import SideBar from './base/SideBar.jsx';
 import NavBar from './base/NavBar.jsx';
@@ -56,6 +57,7 @@ const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
     { id: 'evaluation', label: 'Evaluation', icon: Clipboard },
     { id: 'contracts', label: 'Contracts', icon: FileCheck },
     { id: 'reports', label: 'Reports', icon: TrendingUp },
+    { id: 'budget', label: 'Budget', icon: Wallet },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'profile', label: 'Profile', icon: User }
   ];
@@ -114,6 +116,7 @@ const TenderAdminDashboard = ({ onLogout, initialTab = 'dashboard' }) => {
           )}
           {activeTab === 'contracts' && <ContractsView />}
           {activeTab === 'reports' && <ReportsView />}
+          {activeTab === 'budget' && <BudgetView tenders={tenders} />}
           {activeTab === 'settings' && <SettingsView />}
         </main>
       </div>

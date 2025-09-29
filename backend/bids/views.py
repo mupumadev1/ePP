@@ -12,10 +12,12 @@ from django.http import FileResponse, Http404
 
 from tenders.models import Tender, TenderUploadDocuments
 from users.models import EntityUser, ProcuringEntity
-from .models import Bid, BidDocument, Contract, BidEvaluation, EvaluationCriterion, TenderEvaluationConfig
+from .models import Bid, BidDocument, Contract, BidEvaluation, EvaluationCriterion, TenderEvaluationConfig, \
+    EvaluationCommittee
 from .serializer import OpportunitySerializer, BidListSerializer, BidCreateSerializer, RecomputeEvaluationSerializer, \
     UpsertBidCriterionScoresSerializer, EvaluationCriterionSerializer, TenderEvaluationConfigSerializer, \
     ensure_bid_has_required_uploads
+from .services import aggregate_bid_scores, rank_tender_bids, AggregatePolicy
 
 
 class OpportunitiesListView(APIView):
@@ -150,6 +152,7 @@ def upsert_evaluation_scores(request, evaluation_id):
         return Response({'error': 'Not authorized for this evaluation'}, status=status.HTTP_403_FORBIDDEN)
 
     ser = UpsertBidCriterionScoresSerializer(data=request.data, context={'evaluation': evaluation})
+    print(request.data)
     if ser.is_valid():
         ser.save()
         return Response({'status': 'ok'})
@@ -177,6 +180,43 @@ def recompute_evaluation_totals(request, evaluation_id):
         'overall_score': evaluation.overall_score,
     })
 
+
+# Aggregate across evaluators for a bid
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def aggregate_bid_view(request, bid_id):
+    bid = get_object_or_404(Bid.objects.select_related('tender'), id=bid_id)
+    user = request.user
+    if not (
+        user.is_superuser
+        or user == bid.tender.created_by
+        or EntityUser.objects.filter(user=user, entity=bid.tender.procuring_entity, status='active').exists()
+    ):
+        return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+    policy = request.data.get('compliance_policy') or AggregatePolicy.ANY_FAIL_DISQUALIFIES
+    try:
+        min_evals = int(request.data.get('min_evaluations', 1) or 1)
+    except Exception:
+        min_evals = 1
+    result = aggregate_bid_scores(bid, compliance_policy=policy, min_evaluations=min_evals)
+    return Response(result, status=status.HTTP_200_OK)
+
+
+# Rank bids within a tender
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def rank_tender_view(request, tender_id):
+    tender = get_object_or_404(Tender, id=tender_id)
+    user = request.user
+    if not (
+        user.is_superuser
+        or user == tender.created_by
+        or EntityUser.objects.filter(user=user, entity=tender.procuring_entity, status='active').exists()
+    ):
+        return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+    out = rank_tender_bids(tender)
+    return Response({'results': out}, status=status.HTTP_200_OK)
+
 # Create or fetch evaluation for current user on a bid
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -197,8 +237,8 @@ def get_or_create_evaluation(request):
         or EntityUser.objects.filter(user=user, entity=bid.tender.procuring_entity, status='active').exists()
     ):
         return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
-
-    evaluation, created = BidEvaluation.objects.get_or_create(bid=bid, evaluator=user)
+    comittee = EvaluationCommittee.objects.filter(tender=bid.tender, status='active').first()
+    evaluation, created = BidEvaluation.objects.get_or_create(bid=bid, evaluator=user, committee=comittee)
     # Serialize minimal evaluation info for frontend
     scores = {}
     for s in evaluation.criterion_scores.select_related('criterion').all():
@@ -410,17 +450,38 @@ class BidDocumentUploadView(APIView):
     def post(self, request, bid_id):
         bid = get_object_or_404(Bid, id=bid_id, supplier=request.user)
         files = request.FILES.getlist('documents')
+        # optional per-request document_type; when multiple files, apply same type
+        provided_type = request.data.get('document_type')
+        # Map of file_type -> TenderUploadDocuments config for quick lookup
+        tender_reqs = {r.file_type: r for r in bid.tender.upload_documents.all()}
         saved = []
         for f in files:
+            doc_type = provided_type or 'other'
+            cfg = tender_reqs.get(doc_type)
+            # Enforce max file size if configured
+            if cfg and cfg.max_file_size and f.size and int(f.size) > int(cfg.max_file_size):
+                return Response({
+                    'error': f"File '{f.name}' exceeds maximum size for {cfg.name} ({cfg.max_file_size} bytes)",
+                    'code': 'file_too_large',
+                    'limit': int(cfg.max_file_size),
+                    'actual': int(f.size),
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # If a specific doc_type was provided but not defined on tender, reject to ensure consistency
+            if provided_type and not cfg:
+                return Response({
+                    'error': f"Invalid document_type '{provided_type}' for this tender.",
+                    'allowed_types': list(tender_reqs.keys())
+                }, status=status.HTTP_400_BAD_REQUEST)
             doc = BidDocument.objects.create(
                 bid=bid,
-                document_name=f.name,
-                document_type='other',
+                document_name=cfg.name if cfg else f.name,
+                document_type=doc_type,
                 file=f,
                 file_size=f.size,
-                mime_type=f.content_type or ''
+                mime_type=getattr(f, 'content_type', '') or '',
+                is_required=bool(getattr(cfg, 'mandatory', False))
             )
-            saved.append({'id': str(doc.id), 'name': doc.document_name})
+            saved.append({'id': str(doc.id), 'name': doc.document_name, 'type': doc.document_type})
         return Response({'uploaded': saved}, status=status.HTTP_201_CREATED)
 
 

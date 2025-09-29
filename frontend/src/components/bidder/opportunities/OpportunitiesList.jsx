@@ -9,6 +9,20 @@ const OpportunityCard = ({ opp }) => (
     <div className="flex-1">
       <div className="text-xs text-gray-500">Ref: {opp.reference_number || opp.referenceNumber}</div>
       <h3 className="text-lg font-semibold text-gray-900">{opp.title}</h3>
+      {(opp.category_name || opp.categoryName || opp.category || opp.subcategory_name || opp.subcategoryName || opp.subcategory) && (
+        <div className="mt-1 flex flex-wrap gap-2">
+          {opp.category_name || opp.categoryName || opp.category ? (
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+              {opp.category_name || opp.categoryName || opp.category}
+            </span>
+          ) : null}
+          {opp.subcategory_name || opp.subcategoryName || opp.subcategory ? (
+            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+              {opp.subcategory_name || opp.subcategoryName || opp.subcategory}
+            </span>
+          ) : null}
+        </div>
+      )}
       <p className="text-sm text-gray-700 mt-2 line-clamp-3">{opp.description}</p>
     </div>
     <div className="flex items-center justify-between mt-4 text-sm text-gray-600">

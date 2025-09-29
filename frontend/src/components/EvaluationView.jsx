@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Users, Building, FileText } from 'lucide-react';
 import { getEvaluationOverview } from '../api/tender.js';
+import axiosInstance from '../api/axiosInstance.jsx';
 
 const EvaluationView = ({ tenders, onSelectTender }) => {
   const [summary, setSummary] = useState({ pending_evaluations: 0, completed_this_month: 0, avg_days_to_complete: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [rankingLoading, setRankingLoading] = useState(null);
+  const [rankingError, setRankingError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -26,6 +29,20 @@ const EvaluationView = ({ tenders, onSelectTender }) => {
     };
     load();
   }, []);
+
+  const rankTender = async (tenderId) => {
+    setRankingLoading(tenderId);
+    setRankingError(null);
+    try {
+      const res = await axiosInstance.post(`/bids/tenders/${tenderId}/rank-bids`);
+      // You may want to surface res.data.results in a modal or state; for now log it
+      console.log('Ranking results:', res.data?.results || res.data);
+    } catch (e) {
+      setRankingError(e?.response?.data?.error || e.message || 'Failed to rank bids');
+    } finally {
+      setRankingLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -58,21 +75,30 @@ const EvaluationView = ({ tenders, onSelectTender }) => {
                         {tender.total_bids} bids
                       </div>
                     </div>
-                    {onSelectTender ? (
+                    <div className="flex items-center gap-2">
+                      {onSelectTender ? (
+                        <button
+                          onClick={() => onSelectTender(tender)}
+                          className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-500"
+                        >
+                          Evaluate
+                        </button>
+                      ) : (
+                        <a
+                          href={`/tenders/${tender.id}/evaluate`}
+                          className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-500 inline-block"
+                        >
+                          Evaluate
+                        </a>
+                      )}
                       <button
-                        onClick={() => onSelectTender(tender)}
-                        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-500"
+                        onClick={() => rankTender(tender.id)}
+                        disabled={rankingLoading === tender.id}
+                        className={`px-3 py-1 rounded text-sm border ${rankingLoading === tender.id ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300'}`}
                       >
-                        Evaluate
+                        {rankingLoading === tender.id ? 'Ranking…' : 'Rank Bids'}
                       </button>
-                    ) : (
-                      <a
-                        href={`/tenders/${tender.id}/evaluate`}
-                        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-500 inline-block"
-                      >
-                        Evaluate
-                      </a>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))}

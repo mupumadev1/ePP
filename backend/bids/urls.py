@@ -17,7 +17,7 @@ from .views import (
     BidDocumentsListForEvaluation,
     BidDocumentServeView, tender_evaluation_config_view, criteria_list_create, criterion_detail_view,
     upsert_evaluation_scores, recompute_evaluation_totals, tender_required_uploads,
-    get_or_create_evaluation,
+    get_or_create_evaluation, aggregate_bid_view, rank_tender_view,
 )
 
 urlpatterns = [
@@ -42,8 +42,12 @@ urlpatterns = [
     path('tenders/<uuid:tender_id>/evaluation/criteria', criteria_list_create, name='criteria-list-create'),
     path('tenders/<uuid:tender_id>/evaluation/criteria/<int:criterion_id>', criterion_detail_view, name='criterion-detail'),
 
-    path('evaluations/<uuid:evaluation_id>/scores', upsert_evaluation_scores, name='upsert-eval-scores'),
-    path('evaluations/<uuid:evaluation_id>/recompute', recompute_evaluation_totals, name='recompute-eval-totals'),
+    path('evaluations/<int:evaluation_id>/scores', upsert_evaluation_scores, name='upsert-eval-scores'),
+    path('evaluations/<int:evaluation_id>/recompute', recompute_evaluation_totals, name='recompute-eval-totals'),
+
+    # Aggregation and ranking
+    path('bids/<uuid:bid_id>/aggregate', aggregate_bid_view, name='aggregate-bid'),
+    path('tenders/<uuid:tender_id>/rank-bids', rank_tender_view, name='rank-tender-bids'),
 
     path('tenders/<uuid:tender_id>/required-uploads/', tender_required_uploads, name='tender-required-uploads'),
 ]

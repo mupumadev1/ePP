@@ -29,9 +29,15 @@ export const submitBid = async (bidId, payload = {}) => {
   return res.data;
 };
 
-export const uploadBidDocuments = async (bidId, files = []) => {
+export const uploadBidDocuments = async (bidId, items = []) => {
+  // items: array of { file: File, type?: string }
   const formData = new FormData();
-  files.forEach((f) => formData.append('documents', f));
+  items.forEach((it) => formData.append('documents', it.file));
+  // If all items share same type, include it once (backend applies to all files in request)
+  const uniqueTypes = Array.from(new Set(items.map((it) => it.type).filter(Boolean)));
+  if (uniqueTypes.length === 1) {
+    formData.append('document_type', uniqueTypes[0]);
+  }
   const res = await axiosInstance.post(`/bids/bid/${bidId}/documents/`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   });

@@ -11,7 +11,10 @@ const TenderDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('view'); // 'view' | 'evaluate' | 'criteria' | 'edit'
-
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  
   useEffect(() => {
     const loadTender = async () => {
       try {
@@ -79,17 +82,11 @@ const TenderDetail = () => {
                 <select
                   className="border rounded px-2 py-1 text-sm"
                   value={tender.status}
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const newStatus = e.target.value;
                     if (!newStatus || newStatus === tender.status) return;
-                    try {
-                      await axiosInstance.patch(`/tenders/${tenderId}/update/`, { status: newStatus });
-                      // Re-fetch detail to update allowed_transitions and other fields
-                      const detail = await axiosInstance.get(`/tenders/${tenderId}/`);
-                      setTender(detail.data);
-                    } catch (err) {
-                      alert(err?.response?.data?.error || err?.response?.data?.status?.[0] || 'Failed to update status');
-                    }
+                    setPendingStatus(newStatus);
+                    setConfirmOpen(true);
                   }}
                   disabled={!tender.allowed_transitions || tender.allowed_transitions.length === 0}
                 >
@@ -171,9 +168,68 @@ const TenderDetail = () => {
         <div>
           <Link to="/tenders" className="text-blue-600 hover:underline">Back to Tenders</Link>
         </div>
-      </div>
 
-
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !updatingStatus && setConfirmOpen(false)} />
+          <div className="relative z-10 w-full max-w-md rounded-lg bg-white shadow-lg">
+            <div className="p-5 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Confirm status change</h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-gray-700">
+                You are about to change the tender status.
+              </p>
+              <div className="text-sm">
+                <div className="text-gray-500">Current status</div>
+                <div className="font-medium text-gray-900">{tender.status}</div>
+              </div>
+              <div className="text-sm">
+                <div className="text-gray-500">New status</div>
+                <div className="font-medium text-gray-900">{pendingStatus}</div>
+              </div>
+              <p className="text-sm text-gray-500">
+                This action may affect available transitions and related workflow steps.
+              </p>
+            </div>
+            <div className="p-5 border-t flex items-center justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                onClick={() => setConfirmOpen(false)}
+                disabled={updatingStatus}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                onClick={async () => {
+                  if (!pendingStatus || updatingStatus) return;
+                  try {
+                    setUpdatingStatus(true);
+                    await axiosInstance.patch(`/tenders/${tenderId}/update/`, { status: pendingStatus });
+                    const detail = await axiosInstance.get(`/tenders/${tenderId}/`);
+                    setTender(detail.data);
+                    setConfirmOpen(false);
+                    setPendingStatus(null);
+                  } catch (err) {
+                    alert(
+                      err?.response?.data?.error ||
+                      err?.response?.data?.status?.[0] ||
+                      'Failed to update status'
+                    );
+                  } finally {
+                    setUpdatingStatus(false);
+                  }
+                }}
+                disabled={updatingStatus}
+              >
+                {updatingStatus ? 'Updating…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

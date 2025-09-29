@@ -154,29 +154,23 @@ class UpsertBidCriterionScoresSerializer(serializers.Serializer):
                     has_doc = bool(explicit_pass) or (float(payload.get('score', 0) or 0) > 0)
                 return (float(criterion.max_points) if has_doc else 0.0, comments)
             elif ctype == EvaluationCriterion.TYPE_BOOLEAN:
-                passed = payload.get('pass')
-                if passed is None:
+                # Fixed: Check for score first, then pass
+                if 'score' in payload:
                     val = payload.get('score')
-                    passed = bool(val) and float(val) > 0
+                    try:
+                        passed = float(val) > 0
+                    except (ValueError, TypeError):
+                        passed = False
+                else:
+                    passed = payload.get('pass', False)
                 return (float(criterion.max_points) if passed else 0.0, comments)
             # TYPE_SCORE
             raw = payload.get('score', 0)
             try:
                 num = float(raw)
-            except Exception:
+            except (ValueError, TypeError):
                 num = 0.0
             return (min(num, float(criterion.max_points)), comments)
-
-        with transaction.atomic():
-            for it in items:
-                criterion = EvaluationCriterion.objects.get(id=it['criterion'])
-                val, comments = coerce_score(criterion, it)
-                BidCriterionScore.objects.update_or_create(
-                    evaluation=evaluation,
-                    criterion=criterion,
-                    defaults={'score': val, 'comments': comments}
-                )
-        return evaluation
 
 def ensure_bid_has_required_uploads(bid: Bid) -> tuple[bool, list[str]]:
     """Check tender-defined required uploads are present on this bid."""
@@ -298,7 +292,9 @@ class BidListSerializer(serializers.ModelSerializer):
 
 class OpportunitySerializer(serializers.ModelSerializer):
     days_remaining = serializers.IntegerField(read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Tender
-        fields = ['id', 'reference_number', 'title', 'description', 'closing_date', 'currency', 'days_remaining']
+        fields = ['id', 'reference_number', 'title', 'description', 'closing_date', 'currency', 'days_remaining', 'category_id', 'subcategory_id', 'category_name', 'subcategory_name']

@@ -118,20 +118,14 @@ def bid_document_path(instance, filename):
 
 
 class BidDocument(models.Model):
-    """Documents submitted with bids"""
-    DOCUMENT_TYPES = [
-        ('technical_proposal', 'Technical Proposal'),
-        ('financial_proposal', 'Financial Proposal'),
-        ('company_profile', 'Company Profile'),
-        ('tax_clearance', 'Tax Clearance'),
-        ('insurance', 'Insurance Certificate'),
-        ('registration_cert', 'Registration Certificate'),
-        ('other', 'Other'),
-    ]
+    """Documents submitted with bids
+    document_type stores a free-form type so it can match tender-defined upload requirements (TenderUploadDocuments.file_type).
+    """
 
     bid = models.ForeignKey(Bid, on_delete=models.CASCADE, related_name='documents')
     document_name = models.CharField(max_length=200)
-    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
+    # Allow arbitrary types to align with TenderUploadDocuments.file_type
+    document_type = models.CharField(max_length=200)
     file = models.FileField(upload_to=bid_document_path)
     file_size = models.PositiveBigIntegerField(null=True, blank=True)
     mime_type = models.CharField(max_length=100, blank=True)

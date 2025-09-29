@@ -30,12 +30,23 @@ const TenderDetailsModal = ({ tender, onClose }) => {
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-semibold text-gray-700">Reference</h4>
-            <p className="text-gray-900">{tender.reference_number}</p>
+            <p className="text-gray-900">{tender.reference_number || tender.referenceNumber}</p>
           </div>
 
           <div>
             <h4 className="text-sm font-semibold text-gray-700">Title</h4>
             <p className="text-gray-900">{tender.title}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700">Category</h4>
+              <p className="text-gray-900">{tender.category_name || tender.categoryName || tender.category || '—'}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700">Subcategory</h4>
+              <p className="text-gray-900">{tender.subcategory_name || tender.subcategoryName || tender.subcategory || '—'}</p>
+            </div>
           </div>
 
           <div>
@@ -46,13 +57,13 @@ const TenderDetailsModal = ({ tender, onClose }) => {
           <div>
             <h4 className="text-sm font-semibold text-gray-700">Estimated Value</h4>
             <p className="text-gray-900">
-              ZMW {tender.estimated_value?.toLocaleString()}
+              ZMW {Number(tender.estimated_value || tender.estimatedValue || 0).toLocaleString()}
             </p>
           </div>
 
           <div>
             <h4 className="text-sm font-semibold text-gray-700">Closing Date</h4>
-            <p className="text-gray-900">{tender.closing_date}</p>
+            <p className="text-gray-900">{tender.closing_date || tender.closingDate}</p>
           </div>
 
           <div>

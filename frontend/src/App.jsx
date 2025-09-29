@@ -385,6 +385,19 @@ const App = () => {
         }
       />
 
+         <Route
+        path="/budget"
+        element={
+          isAuthenticated && userRole.canAccessAdmin ? (
+            <TenderAdminDashboard onLogout={handleLogout} initialTab="budget" />
+          ) : isAuthenticated ? (
+            <Unauthorized isAuthenticated={true} userType={userRole.userType} />
+          ) : (
+            <Unauthorized isAuthenticated={false} />
+          )
+        }
+      />
+
       {/* Tender detail page: publicly viewable; login required is enforced only for bidding actions elsewhere */}
       <Route
         path="/tenders/:tenderId"

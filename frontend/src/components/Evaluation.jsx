@@ -1,7 +1,17 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
-  Download, Users, FileText, Calculator, Plus, Save, AlertCircle,
-  CheckCircle, Clock, User, Star, Upload, Eye, ExternalLink
+    AlertCircle,
+    Calculator,
+    CheckCircle,
+    Clock,
+    Download,
+    Eye,
+    FileText,
+    Plus,
+    Save,
+    Star,
+    User,
+    Users
 } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance.jsx';
 
@@ -35,6 +45,18 @@ const api = {
   // Recompute evaluation totals
   recomputeEvaluation: async (evaluationId) => {
     const res = await axiosInstance.post(`/bids/evaluations/${evaluationId}/recompute`);
+    return res.data;
+  },
+
+  // Aggregate a bid across all evaluators
+  aggregateBid: async (bidId, options = {}) => {
+    const res = await axiosInstance.post(`/bids/bids/${bidId}/aggregate`, options);
+    return res.data;
+  },
+
+  // Rank bids within a tender
+  rankTenderBids: async (tenderId) => {
+    const res = await axiosInstance.post(`/bids/tenders/${tenderId}/rank-bids`);
     return res.data;
   },
 
@@ -267,10 +289,31 @@ function TechnicalTab({
   }
 
   // Filter to only compliant bids if compliance is required
-  const eligibleBids = config?.compliance_required
-    ? bids.filter(bid => evaluations[bid.id]?.technical_compliance === true)
-    : bids;
+ // Filter to only compliant bids if compliance is required
+    const eligibleBids = useMemo(() => {
+      if (!config?.compliance_required) {
+        return bids;
+      }
 
+      return bids.filter(bid => {
+        const evaluation = evaluations[bid.id];
+        if (!evaluation) return false;
+
+        // Check if all compliance criteria are passing
+        const complianceCriteria = criteria.filter(c => c.section === 'compliance');
+        if (complianceCriteria.length === 0) return true;
+
+  return complianceCriteria.every(criterion => {
+            const score = evaluation.criterion_scores?.[criterion.id];
+            if (!score) return false;
+
+            // For boolean/upload criteria, score > 0 means pass
+            // For mandatory criteria, must pass
+            const passed = score.score > 0;
+            return criterion.mandatory ? passed : true; // Non-mandatory can fail
+        });
+      });
+    }, [bids, evaluations, criteria, config]);
   if (config?.compliance_required && eligibleBids.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -392,10 +435,31 @@ function FinancialTab({
   const financialCriteria = criteria.filter(c => c.section === 'financial');
 
   // Filter eligible bids
-  const eligibleBids = config?.compliance_required
-    ? bids.filter(bid => evaluations[bid.id]?.technical_compliance === true)
-    : bids;
+ // Filter eligible bids
+    const eligibleBids = useMemo(() => {
+      if (!config?.compliance_required) {
+        return bids;
+      }
 
+      return bids.filter(bid => {
+        const evaluation = evaluations[bid.id];
+        if (!evaluation) return false;
+
+        // Check if all compliance criteria are passing
+        const complianceCriteria = criteria.filter(c => c.section === 'compliance');
+        if (complianceCriteria.length === 0) return true;
+
+  return complianceCriteria.every(criterion => {
+            const score = evaluation.criterion_scores?.[criterion.id];
+            if (!score) return false;
+
+            // For boolean/upload criteria, score > 0 means pass
+            // For mandatory criteria, must pass
+            const passed = score.score > 0;
+            return criterion.mandatory ? passed : true; // Non-mandatory can fail
+        });
+      });
+    }, [bids, evaluations, criteria, config]);
   if (config?.compliance_required && eligibleBids.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -919,9 +983,11 @@ function CommitteeTab({ committee, onUpdateCommittee, currentUser }) {
 }
 
 // Documents Tab (unchanged but integrated)
+// Documents Tab - Enhanced with document viewing
 function DocumentsTab({ bids }) {
   const [docsMap, setDocsMap] = useState({});
   const [loading, setLoading] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState(null);
 
   useEffect(() => {
     const loadDocuments = async () => {
@@ -949,6 +1015,30 @@ function DocumentsTab({ bids }) {
     loadDocuments();
   }, [bids]);
 
+  const handleViewDocument = (doc) => {
+    if (doc.view_url) {
+      // For PDFs and images, open in new tab
+      if (doc.document_type?.toLowerCase().includes('pdf') ||
+          doc.file_name?.toLowerCase().match(/\.(pdf|jpg|jpeg|png|gif)$/)) {
+        window.open(doc.view_url, '_blank');
+      } else {
+        // For other documents, set in modal
+        setViewingDoc(doc);
+      }
+    }
+  };
+
+  const handleDownloadDocument = (doc) => {
+    if (doc.download_url) {
+      const link = document.createElement('a');
+      link.href = doc.download_url;
+      link.download = doc.document_name || doc.file_name || 'document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-8">
@@ -960,6 +1050,45 @@ function DocumentsTab({ bids }) {
 
   return (
     <div className="space-y-4">
+      {/* Document Viewer Modal */}
+      {viewingDoc && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] w-full mx-4 flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-medium">{viewingDoc.document_name}</h3>
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <iframe
+                src={viewingDoc.view_url}
+                className="w-full h-full min-h-[500px]"
+                title={viewingDoc.document_name}
+              />
+            </div>
+            <div className="p-4 border-t flex gap-2">
+              <button
+                onClick={() => handleDownloadDocument(viewingDoc)}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </button>
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {bids?.map((bid) => {
         const docs = docsMap[bid.id];
         const hasError = docs?.error;
@@ -986,52 +1115,40 @@ function DocumentsTab({ bids }) {
             ) : docsList.length === 0 ? (
               <div className="text-sm text-gray-500 italic">No documents uploaded</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Document</th>
-                      <th className="px-3 py-2 text-left">Type</th>
-                      <th className="px-3 py-2 text-left">Size</th>
-                      <th className="px-3 py-2 text-left">Uploaded</th>
-                      <th className="px-3 py-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {docsList.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 font-medium">{doc.document_name}</td>
-                        <td className="px-3 py-2">{doc.document_type}</td>
-                        <td className="px-3 py-2">
-                          {doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : '-'}
-                        </td>
-                        <td className="px-3 py-2">
-                          {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex gap-2">
-                            <a
-                              href={doc.view_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                            >
-                              <Eye className="h-3 w-3" />
-                              View
-                            </a>
-                            <a
-                              href={doc.download_url}
-                              className="text-gray-600 hover:text-gray-800 flex items-center gap-1"
-                            >
-                              <Download className="h-3 w-3" />
-                              Download
-                            </a>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {docsList.map((doc) => (
+                  <div key={doc.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50">
+                    <div className="flex items-start gap-3">
+                      <FileText className="h-8 w-8 text-blue-500 flex-shrink-0 mt-1" />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {doc.document_name}
+                        </h4>
+                        <p className="text-sm text-gray-600">{doc.document_type}</p>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : ''}
+                          {doc.uploaded_at && ` • ${new Date(doc.uploaded_at).toLocaleDateString()}`}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleViewDocument(doc)}
+                            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
+                          >
+                            <Eye className="h-3 w-3" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="text-gray-600 hover:text-gray-800 flex items-center gap-1 text-sm"
+                          >
+                            <Download className="h-3 w-3" />
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1085,8 +1202,7 @@ export default function EnhancedTenderEvaluation({ tender, onClose, currentUser 
         const evaluationsData = {};
         for (const bid of bidsData) {
           try {
-            const evaluation = await api.getOrCreateEvaluation(bid.id, committeeResponse?.committee?.id);
-            evaluationsData[bid.id] = evaluation;
+              evaluationsData[bid.id] = await api.getOrCreateEvaluation(bid.id, committeeResponse?.committee?.id);
           } catch (error) {
             console.error(`Failed to load evaluation for bid ${bid.id}:`, error);
           }
@@ -1139,6 +1255,14 @@ export default function EnhancedTenderEvaluation({ tender, onClose, currentUser 
             ...updatedEvaluation
           }
         }));
+
+        // Trigger aggregation for this bid so the final bid score/ranking stays current
+        try {
+          await api.aggregateBid(bidId);
+        } catch (aggErr) {
+          // Non-fatal for evaluator; admin can aggregate later
+          console.warn('Aggregation after recompute failed (non-fatal):', aggErr?.response?.data || aggErr.message);
+        }
       }
     } catch (error) {
       console.error('Failed to save score:', error);
